@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "outDir": "build",
+    "baseUrl": "./src",
+    "strict": true,
+    "noImplicitAny": true,
+    "target": "ES2015",
+    "module": "CommonJS",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationDir": "declerations"
+  },
+  "compileOnSave": true,
+  "exclude": ["node_modules/", "build/"]
+}
