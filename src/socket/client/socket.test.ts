@@ -70,12 +70,17 @@ describe('Socket Connection', () => {
     }
   });
 
-  it('Should handle connection loss', () => {
-    
+  it('Should handle connection loss', async () => {
+    shutdownServer();
+    await wait(100);
+    expect([WebSocket.CLOSED, WebSocket.CLOSING].includes(instance.Status)).toBe(true);
+    startServer(8000, createMockServer);
+    await wait(1000);
+    expect([WebSocket.OPEN, WebSocket.CONNECTING].includes(instance.Status)).toBe(true);
   });
 });
 
-describe.only('Socket Authentication', () => {
+describe('Socket Authentication', () => {
   it('Should login successfully', async () => {
     try { 
       await instance.Login({ email: 'foo', password: 'bar' });

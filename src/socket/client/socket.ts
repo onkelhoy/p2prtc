@@ -12,7 +12,7 @@ import {
 } from './types';
 
 const MAX_ATTEMPTS = 10;
-const DELAY = 12 * 1000;
+const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
 
 export class Socket {
   private ws!: WebSocket;
@@ -75,7 +75,9 @@ export class Socket {
     if (![WebSocket.OPEN, WebSocket.CONNECTING].includes(this.ws.readyState)) {
       if (this.attempts < MAX_ATTEMPTS) {
         this.attempts++;
-        this.setup(this.ws.url);
+        setTimeout(() => {
+          this.setup(this.ws.url);
+        }, (Math.sign(this.attempts) + (this.attempts / MAX_ATTEMPTS)) * RECONNECT_TIME_INTERVAL_STEP)
       }
       else console.error(`[SOCKET ERROR] connection attempt maxed out: ${this.attempts}`);
     }
