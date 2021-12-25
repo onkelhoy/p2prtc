@@ -1,3 +1,3 @@
-import { Socket } from 'socket/client';
+import { Socket } from 'socket/client';
 
 const s = new Socket("helo");

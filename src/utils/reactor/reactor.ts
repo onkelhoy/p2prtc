@@ -4,21 +4,28 @@ interface IEvent {
 }
 
 export class Reactor {
-  events!: Map<string, IEvent>;
+  private events: Map<string, IEvent>;
+
   private static instance: Reactor;
 
-  constructor() {
-    if (Reactor.instance) return Reactor.instance;
-
+  constructor () {
     this.events = new Map();
-    Reactor.instance = this;
   }
 
-  has (name: string) {
+  public static getInstance() {
+    return this.instance || (this.instance = new Reactor());
+  }
+
+
+  public has (name: string) {
     return this.events.has(name);
   }
 
-  register (name: string) {
+  public get (name: string) {
+    return this.events.get(name);
+  }
+
+  public register (name: string) {
     const event:IEvent = {
       name,
       callbacks: [],
@@ -27,23 +34,22 @@ export class Reactor {
     this.events.set(name, event);
   }
 
-  disptatch (name: string, eventArgs?: any) {
-    const event = this.events.get(name);
-    console.log('dispatch', name, this.events, this.events.get(name))
+  public disptatch (name: string, eventArgs?: any) {
+    const event = this.get(name);
     if (event) {
       event.callbacks.forEach(callback => callback(eventArgs));
     }
   }
 
-  addEventListener (name: string, callback: Function) {
-    const event = this.events.get(name);
+  public addEventListener (name: string, callback: Function) {
+    const event = this.get(name);
     if (event) {
       event.callbacks.push(callback);
     }
   }
 
-  removeEventListener (name: string, callback: Function) {
-    const event = this.events.get(name);
+  public removeEventListener (name: string, callback: Function) {
+    const event = this.get(name);
     if (event) {
       event.callbacks = event.callbacks.filter(cb => cb !== callback);
     }

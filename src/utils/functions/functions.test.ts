@@ -2,11 +2,8 @@
  * @jest-environment jsdom
  */
 
-import { Reactor } from 'utils/reactor';
-import { DoAndWait } from '.';
-
-const reactor = new Reactor();
-
+import { reactor } from 'utils/reactor';
+import { DoAndWait } from '.';
 
 describe('util function test', () => {
   it('DoAndWait', async () => {

@@ -1,8 +1,16 @@
-import { DoAndWait } from '../../utils/functions';
-import { Reactor } from '../../utils/reactor';
-import { IToken, SocketMessage, MessageType, SocketLoginMessage, ICredentials, IUser, SocketLoginResponse } from './types';
+import { DoAndWait } from 'utils/functions';
+import { reactor } from 'utils/reactor';
 
-const reactor = new Reactor();
+import { 
+  IToken, 
+  SocketMessage, 
+  MessageType, 
+  SocketLoginMessage, 
+  ICredentials, 
+  IUser, 
+  SocketLoginResponse 
+} from './types';
+
 const MAX_ATTEMPTS = 10;
 const DELAY = 12 * 1000;
 

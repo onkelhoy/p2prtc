@@ -9,11 +9,11 @@ export enum MessageType {
 
   Logout = "logout",
   Login = "login",
-  LoginAnswers = "login-answers",
+  LoginAnswer = "login-answer",
 }
 
 const LoginResponse = {
-  success: { user: { score: 10, email: "foo" }, token: "banana" },
+  success: { user: { score: 10, email: "foo" }, token: "banana" },
   unothenticated: { user: null },
 }
 
@@ -37,9 +37,9 @@ function onmessage(user: WebSocket, event: WebSocket.MessageEvent): void {
         case MessageType.Login: {
           const { email, password } = msg.credentials as ICredentials;
           if (email === "foo" && password === "bar") {
-            send(user, MessageType.LoginAnswers, LoginResponse.success)
+            send(user, MessageType.LoginAnswer, LoginResponse.success)
           }
-          else send(user, MessageType.LoginAnswers, LoginResponse.unothenticated);
+          else send(user, MessageType.LoginAnswer, LoginResponse.unothenticated);
           break;
         }
         default: {
@@ -52,6 +52,6 @@ function onmessage(user: WebSocket, event: WebSocket.MessageEvent): void {
 }
 
 function send(user: WebSocket, type: MessageType, data: object) {
-  const msg = JSON.stringify({ type, ...data });
+  const msg = JSON.stringify({ type, ...data });
   user.send(msg);
 }
