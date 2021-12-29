@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import mongoose from 'mongoose';
 
 // utils 
 export interface IToken {
@@ -62,13 +63,23 @@ export enum UserStatus {
   confirmed,
   banned,
 }
-export interface IUser {
-  id: string;
+export interface IUserUpdate {
+  _id: mongoose.Types.ObjectId;
+  email?: string;
+  name?: string;
+  score?: number;
+  password?: string;
+  status?: UserStatus;
+}
+export interface IUser extends mongoose.Document {
+  _id: mongoose.Types.ObjectId;
   email: string;
   name: string;
   score: number;
   password: string;
   status: UserStatus;
+
+  comparePassword(otherpassword:string):boolean;
 }
 export interface IUserPublicInfo {
   email: string;
@@ -76,10 +87,10 @@ export interface IUserPublicInfo {
   score: number;
 }
 export interface IUserSystemInfo {
-  id: string;
+  _id: mongoose.Types.ObjectId;
   status: UserStatus;
 } 
-interface IUserRegisterInfo {
+export interface IUserRegisterInfo {
   email: string;
   password: string;
   name: string;
@@ -88,4 +99,12 @@ interface IUserRegisterInfo {
 export interface ICredentials {
   email: string;
   password: string;
-} 
+}
+
+// room
+export interface IRoom {
+  name: string;
+  limit?: number;
+  password?: string;
+  sockets: ISocket[];
+}

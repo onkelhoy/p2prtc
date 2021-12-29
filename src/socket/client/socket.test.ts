@@ -5,7 +5,6 @@
 import { DoAndWait } from 'utils/functions';
 import { startServer, shutdownServer } from 'utils/createServer';
 import { createMockServer } from '@mock/socketserver.mock';
-import { reactor } from 'utils/reactor';
 
 import { Socket } from "./socket";
 import { MessageType } from "./types";

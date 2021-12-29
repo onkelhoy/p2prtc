@@ -8,7 +8,8 @@ import {
   SocketLoginMessage, 
   SocketMessage, 
   SocketRegisterMessage, 
-  SocketTargetMessage 
+  SocketTargetMessage, 
+  IRoom
 } from './types'
 
 
@@ -16,8 +17,11 @@ let wss: WebSocketServer;
 const DURATION = 100;
 const MAXSTRIKES = 3;
 
+const rooms = new Map<string, IRoom>();
+
 export function InitSocketServer (server: http.Server) {
   wss = new WebSocketServer({ server });
+  // wss.clients
   wss.on("connection", (socket: ISocket) => {
     socket.lastmessage = 0;
     socket.strike = 0;
@@ -28,7 +32,7 @@ export function InitSocketServer (server: http.Server) {
 }
 
 async function spamcheck (socket: ISocket) {
-  if (socket.system?.status === UserStatus.banned) throw new Error(`user ${socket.system.id} is banned`);
+  if (socket.system?.status === UserStatus.banned) throw new Error(`user ${socket.system._id} is banned`);
   if (socket.lastmessage) {
     if (performance.now() - socket.lastmessage < DURATION) {
       // user sent message before duration time has passed, user should have MAXSTRIKES strikes and then banned
@@ -37,7 +41,7 @@ async function spamcheck (socket: ISocket) {
 
         // await database.ban()
 
-        throw new Error(`banning user ${socket.system.id} due to spam`);
+        throw new Error(`banning user ${socket.system._id} due to spam`);
       }
       socket.strike++;
     } 
@@ -52,9 +56,9 @@ function authcheck (socket: ISocket): boolean {
 
 async function onmessage (socket: ISocket, event: WebSocket.MessageEvent) {
   try {
-    const message: SocketMessage = JSON.parse(event.data as string);
-  
     await spamcheck(socket);
+
+    const message: SocketMessage = JSON.parse(event.data as string);
    
   
     switch (message.type) {
@@ -64,7 +68,7 @@ async function onmessage (socket: ISocket, event: WebSocket.MessageEvent) {
       case MessageType.Register:
         handleregister(socket, message as SocketRegisterMessage);
         break;
-      case MessageType.Target:
+      case MessageType.Target: // from socket to socket
         handletarget(socket, message as SocketTargetMessage);
         break;
     } 
@@ -91,7 +95,7 @@ function handleregister (socket: ISocket, message: SocketRegisterMessage) {
 }
 
 function handletarget (socket: ISocket, message: SocketTargetMessage) {
-  const { target } = 
+  const { target } = message;
 }
 
 // helper functions 

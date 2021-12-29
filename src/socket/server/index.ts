@@ -1,8 +1,8 @@
 import http from "http";
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 import { InitSocketServer } from './socket';
 
-dotenv.config();
+dotenv.config({ path: __dirname+'/.env' });
 
 const httpserver = http.createServer();
 InitSocketServer(httpserver);
