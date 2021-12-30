@@ -1,19 +1,15 @@
-/**
- * @jest-environment jsdom
- */
-
-import { startServer, shutdownServer } from 'utils/createServer';
-import { InitSocketServer } from './socket';
-import { MessageType, SocketMessage } from './types';
+import { startServer, shutdownServer } from '../../client/src/utils/createServer';
+import { InitSocketServer } from '../server/socket';
+import { MessageType, SocketMessage } from '../src/types';
 
 // ############ SETUP #####################
 
-beforeAll(() => {
+before(() => {
   console.log('Mock server startup');
   startServer(8000, InitSocketServer);
 });
 
-afterAll(() => {
+after(() => {
   console.log('Mock server shutdown');
   shutdownServer();
 });
