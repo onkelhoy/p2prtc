@@ -1,5 +1,6 @@
-import { reactor } from 'utils/reactor';
+import { Reactor } from 'utils/reactor';
 
+const reactor = new Reactor();
 const DELAY = 12 * 1000;
 
 type DoWaitResponse<T> = (data: object, resolve: TResolve<T>, reject: TReject) => void;

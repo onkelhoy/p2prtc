@@ -7,7 +7,7 @@ import { 
   IUserUpdate,
   ICredentials, 
   IUserRegisterInfo,
-} from '../types';
+} from '../utils/types';
 
 const SALT_WORK_FACTOR = process.env.SALT || '10';
 

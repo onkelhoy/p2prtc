@@ -4,12 +4,15 @@ interface IEvent {
 }
 
 export class Reactor {
-  private events: Map<string, IEvent>;
+  private events!: Map<string, IEvent>;
 
   private static instance: Reactor;
 
   constructor () {
+    if (Reactor.instance) return Reactor.instance;
+
     this.events = new Map();
+    Reactor.instance = this;
   }
 
   public static getInstance() {

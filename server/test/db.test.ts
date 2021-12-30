@@ -1,18 +1,23 @@
-// import mongoose from 'mongoose';
-// import chalk from 'chalk';
-// import * as dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import chalk from 'chalk';
+import * as dotenv from 'dotenv';
 
-import { IUser } from '../src/types';
-import * as db from '../src/models/db';
-import * as user from '../src/models/user';
+import { IUser } from 'utils/types';
+import * as db from 'models/db';
+import * as user from 'models/user';
 
-// dotenv.config({ path: __dirname+'../.env' });
+dotenv.config({ path: __dirname+'../.env' });
 
+// setup 
+before(() => {
+  console.log(chalk.blueBright("database startup"));
+  db.startup();
+})
 
 // teardown
 after(() => {
-  // console.log(chalk.yellow("database teardown"));
-  db.manualclose();
+  console.log(chalk.yellow("database teardown"));
+  db.teardown();
 });
 
 let testuser: IUser|null = null;

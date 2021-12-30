@@ -1,5 +1,5 @@
 import { DoAndWait } from 'utils/functions';
-import { reactor } from 'utils/reactor';
+import { Reactor } from 'utils/reactor';
 
 import { 
   IToken, 
@@ -9,8 +9,9 @@ import {
   ICredentials, 
   IUser, 
   SocketLoginResponse 
-} from './types';
+} from 'utils/types';
 
+const reactor = new Reactor();
 const MAX_ATTEMPTS = 10;
 const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
 

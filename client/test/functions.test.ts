@@ -1,5 +1,7 @@
-import { reactor } from 'utils/reactor';
+import { Reactor } from 'utils/reactor';
 import { DoAndWait } from 'utils/functions';
+
+const reactor = new Reactor();
 
 describe('util function test', () => {
   it('DoAndWait', async () => {

@@ -1,4 +1,6 @@
-import { reactor } from "utils/reactor";
+import { Reactor } from "utils/reactor";
+
+const reactor = new Reactor();
 
 describe('Reactor Pattern', () => {
 

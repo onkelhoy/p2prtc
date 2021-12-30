@@ -1,6 +1,6 @@
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';
-import { ICredentials } from 'types';
+import { ICredentials } from 'utils/types';
 
 export enum MessageType {
   Unothenticated = "unothenticated", // for testing purposes
@@ -15,14 +15,6 @@ export enum MessageType {
 const LoginResponse = {
   success: { user: { score: 10, email: "foo" }, token: "banana" },
   unothenticated: { user: null },
-}
-
-export function createMockServer (server: http.Server ) {
-
-  const wss = new WebSocketServer({ server });
-  wss.on("connection", user => {
-    user.onmessage = (event: WebSocket.MessageEvent) => onmessage(user, event);
-  });
 }
 
 function onmessage(user: WebSocket, event: WebSocket.MessageEvent): void {
@@ -54,4 +46,25 @@ function onmessage(user: WebSocket, event: WebSocket.MessageEvent): void {
 function send(user: WebSocket, type: MessageType, data: object) {
   const msg = JSON.stringify({ type, ...data });
   user.send(msg);
+}
+
+let server: http.Server;
+
+export function shutdownServer() {
+  server.close();
+}
+
+export function setup(port:number = 8000) {
+  server = http.createServer();
+
+  const wss = new WebSocketServer({ server });
+  wss.on("connection", user => {
+    user.onmessage = (event: WebSocket.MessageEvent) => onmessage(user, event);
+  });
+
+  server.listen(port);
+}
+
+export function teardown() {
+  server.close();
 }

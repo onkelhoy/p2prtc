@@ -1,22 +1,20 @@
 import { DoAndWait } from 'utils/functions';
-import { startServer, shutdownServer } from 'utils/createServer';
 import { Socket } from "socket";
-import { MessageType } from "types";
+import { MessageType } from "utils/types";
 
-import { createMockServer } from './mockserver';
+import * as mockserver from './mockserver';
 
 const URL = "ws://localhost:8000";
 let instance: Socket;
 
-
 // ############ SETUP #####################
 
 before(() => {
-  startServer(8000, createMockServer);
+  mockserver.setup(8000);
 });
 
 after(() => {
-  shutdownServer();
+  mockserver.teardown();
 });
 
 beforeEach(async () => {
@@ -71,10 +69,10 @@ describe('Socket Connection', () => {
   });
 
   it('Should handle connection loss', async () => {
-    shutdownServer();
+    mockserver.teardown();
     await wait(100);
     expect([WebSocket.CLOSED, WebSocket.CLOSING].includes(instance.Status)).toBe(true);
-    startServer(8000, createMockServer);
+    mockserver.setup(8000);
     await wait(1000);
     expect([WebSocket.OPEN, WebSocket.CONNECTING].includes(instance.Status)).toBe(true);
   });

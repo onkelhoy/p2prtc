@@ -1,17 +1,18 @@
-import { startServer, shutdownServer } from '../../client/src/utils/createServer';
-import { InitSocketServer } from '../server/socket';
-import { MessageType, SocketMessage } from '../src/types';
+import { InitSocketServer } from 'socket';
+import chalk from 'chalk';
+import { MessageType, SocketMessage } from 'utils/types';
+import * as server from 'server';
 
 // ############ SETUP #####################
 
 before(() => {
-  console.log('Mock server startup');
-  startServer(8000, InitSocketServer);
+  console.log(chalk.yellow('Server startup'));
+  server.startup();
 });
 
 after(() => {
-  console.log('Mock server shutdown');
-  shutdownServer();
+  console.log(chalk.yellow('Server teardown'));
+  server.teardown();
 });
 
 describe('Connection Test', () => {

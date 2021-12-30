@@ -10,7 +10,7 @@ import {
   SocketRegisterMessage, 
   SocketTargetMessage, 
   IRoom
-} from './types'
+} from './utils/types'
 
 
 let wss: WebSocketServer;
