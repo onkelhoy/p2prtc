@@ -1,9 +1,5 @@
-/**
- * @jest-environment jsdom
- */
-
 import { reactor } from 'utils/reactor';
-import { DoAndWait } from '.';
+import { DoAndWait } from 'utils/functions';
 
 describe('util function test', () => {
   it('DoAndWait', async () => {

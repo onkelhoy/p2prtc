@@ -1,5 +1,4 @@
-import { reactor } from ".";
-
+import { reactor } from "utils/reactor";
 
 describe('Reactor Pattern', () => {
 

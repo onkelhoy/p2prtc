@@ -1,6 +1,6 @@
-import { ICredentials } from 'socket/client/types';
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';
+import { ICredentials } from 'types';
 
 export enum MessageType {
   Unothenticated = "unothenticated", // for testing purposes

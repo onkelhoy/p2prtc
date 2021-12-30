@@ -1,13 +1,9 @@
-/**
- * @jest-environment jsdom
- */
-
 import { DoAndWait } from 'utils/functions';
 import { startServer, shutdownServer } from 'utils/createServer';
-import { createMockServer } from '@mock/socketserver.mock';
+import { Socket } from "socket";
+import { MessageType } from "types";
 
-import { Socket } from "./socket";
-import { MessageType } from "./types";
+import { createMockServer } from './mockserver';
 
 const URL = "ws://localhost:8000";
 let instance: Socket;
@@ -15,8 +11,13 @@ let instance: Socket;
 
 // ############ SETUP #####################
 
-beforeAll(() => startServer(8000, createMockServer));
-afterAll(() => shutdownServer());
+before(() => {
+  startServer(8000, createMockServer);
+});
+
+after(() => {
+  shutdownServer();
+});
 
 beforeEach(async () => {
   // clear instance
