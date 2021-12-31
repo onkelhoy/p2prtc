@@ -12,5 +12,5 @@
     "declarationDir": "declerations"
   },
   "compileOnSave": true,
-  "exclude": ["node_modules/", "build/", "tests/"]
+  "exclude": ["node_modules/", "build/", "test/"]
 }

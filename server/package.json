@@ -1,32 +1,24 @@
 {
   "name": "network-server",
   "version": "1.0.0",
-  "description": "WebRTC (peer) and WebSocket",
-  "main": "build/index.js",
+  "description": "signaling server",
+  "main": "index.js",
   "scripts": {
-    "test": "mocha",
-    "start": "node .",
-    "watch": "tsc -w",
-    "prestart": "npm run build",
-    "build": "tsc"
+    "test": "mocha"
   },
+  "keywords": [
+    "signaling",
+    "p2p",
+    "websocket"
+  ],
   "author": "Henry Pap",
   "license": "ISC",
   "dependencies": {
-    "bcrypt": "^5.0.1",
-    "chalk": "^5.0.0",
-    "dotenv": "^10.0.0",
-    "mongoose": "^6.1.3"
+    "ws": "^8.4.0"
   },
   "devDependencies": {
-    "@types/node": "^16.11.10",
-    "@types/bcrypt": "^5.0.0",
-    "@types/chai": "^4.3.0",
-    "@types/chalk": "^2.2.0",
     "@types/mocha": "^9.0.0",
-    "@types/ws": "^8.2.0",
-    "mocha": "^9.1.3",
-    "typescript": "^4.5.2",
-    "ws": "^8.3.0"
+    "@types/ws": "^8.2.2",
+    "mocha": "^9.1.3"
   }
 }
