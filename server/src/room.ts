@@ -11,7 +11,7 @@ interface RoomConfig {
 
 export class Room {
   private clients!: Map<ID, SocketInfo>;
-  private password!: string;
+  private password!: string|undefined;
   private limit!: number;
   private banned!: Set<ID>;
   public name!: string;
@@ -23,16 +23,18 @@ export class Room {
     this.limit = config.limit || Infinity;
     this.clients = new Map();
     this.name = config.name;
+    this.password = config.password;
     this.id = config.id;
     this.banned = new Set();
     
-    this.join(creator);
+    this.join(creator, this.password);
   }
 
-  private canjoin(socket: ID) {
+  private canjoin(socket: ID, password?: string): UnothorizedReason|null {
     if (this.limit === this.clients.size) return UnothorizedReason.Full;
     if (this.banned.has(socket)) return UnothorizedReason.Banned;
     if (this.clients.has(socket)) return UnothorizedReason.Duplicate;
+    if (this.password && this.password !== password) return UnothorizedReason.Password;
 
     return null;
   }
@@ -50,7 +52,7 @@ export class Room {
     return this.clients.size;
   }
   public join(socket: ISocketSimple, password?: string) {
-    const reason = this.canjoin(socket.id);
+    const reason = this.canjoin(socket.id, password);
     if (!reason) {
       // TODO broadcast to room that client joined 
       // TODO send to socket all client infos

@@ -15,6 +15,7 @@ export enum UnothorizedReason {
   Full = "room-unothorized-full",
   Banned = "room-unothorized-banned",
   NotHost = "room-unothorized-host",
+  Password = "room-unothorized-password",
   Duplicate = "room-unothorized-duplicate", // NOTE should never be sent 
 }
 

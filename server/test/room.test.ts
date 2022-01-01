@@ -1,6 +1,5 @@
-import assert from 'assert';
-import { Room } from "room";
-import { ISocketSimple } from 'types/socket';
+import { Room } from "../src/room";
+import { ISocketSimple } from '../src/types/socket';
 
 function getClient(id: number): ISocketSimple {
   return { id: id.toString(), info: {} };
@@ -13,8 +12,8 @@ describe("Core room tests", () => {
       name: 'test-room',
     });
 
-    assert.equal(room.size, 1);
-    assert.equal(room.host, '0');
+    expect(room.size).toBe(1);
+    expect(room.host).toBe('0');
   });
 
   it("join room", () => {
@@ -24,7 +23,7 @@ describe("Core room tests", () => {
     });
     room.join(getClient(1));
 
-    assert.equal(room.size, 2);
+    expect(room.size).toBe(2);
   });
 
   it("room limit", () => {
@@ -35,7 +34,7 @@ describe("Core room tests", () => {
     });
     room.join(getClient(1));
 
-    assert.equal(room.size, 1);
+    expect(room.size).toBe(1);
   });
 
   it("join locked room", () => {
@@ -46,7 +45,7 @@ describe("Core room tests", () => {
     });
     room.join(getClient(1), '123');
 
-    assert.equal(room.size, 2);
+    expect(room.size).toBe(2);
   });
 
   it("no password", () => {
@@ -57,7 +56,7 @@ describe("Core room tests", () => {
     });
     room.join(getClient(1));
 
-    assert.equal(room.size, 1);
+    expect(room.size).toBe(1);
   });
 
   it("wrong password", () => {
@@ -68,6 +67,6 @@ describe("Core room tests", () => {
     });
     room.join(getClient(1), '1234');
 
-    assert.equal(room.size, 1);
+    expect(room.size).toBe(1);
   });
 });
