@@ -3,6 +3,9 @@ import { Reactor } from "../src/reactor";
 const reactor = new Reactor();
 
 describe('Reactor Pattern', () => {
+  afterEach(() => {
+    reactor.deregister("foo");
+  })
 
   it('register foo and add listerners', () => {
     reactor.register("foo");
@@ -12,6 +15,10 @@ describe('Reactor Pattern', () => {
     reactor.addEventListener("foo", () => 5);
     expect(fooevent?.callbacks.length).toBe(1);
   });
+
+  it("deregister of foo", () => {
+    expect(reactor.has("foo")).toBe(false);
+  })
 
   it("dispatch event", async () => {
     let comp = 0;

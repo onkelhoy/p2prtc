@@ -1,5 +1,5 @@
 import { SocketMessage, MessageCategory } from 'types/socket.msg';
-import { ISocket } from 'types/socket';
+import { ISocket, ISocketSimple } from 'types/socket';
 
 export enum RoomType {
   Leave = "room-leave",
@@ -24,11 +24,15 @@ export interface RoomMessage extends SocketMessage {
   type: RoomType;
 }
 
-export interface RoomSocketMessage extends RoomMessage {
-  socket: ISocket;
-}
-
 export interface UnothorizedMessage extends RoomMessage {
   type: RoomType.Unothorized;
   reason: UnothorizedReason;
+}
+
+// NOTE this will most likly only be used at client side 
+// TODO if above is true remove it
+// sent to others & joining peer (others get 1 socket, joining gets mulitple)
+export interface JoinMessage extends RoomMessage {
+  type: RoomType.Join;
+  sockets: ISocketSimple[];
 }

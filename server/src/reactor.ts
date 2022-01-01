@@ -29,12 +29,18 @@ export class Reactor {
   }
 
   public register (name: string) {
+    if (this.has(name)) return;
+    
     const event:IEvent = {
       name,
       callbacks: [],
     };
 
     this.events.set(name, event);
+  }
+
+  public deregister(name:string) {
+    this.events.delete(name);
   }
 
   public dispatch (name: string, eventArgs?: any) {

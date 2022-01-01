@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "watch": "tsc -w --noEmit",
-    "build": "tsc"
+    "build": "tsc --project tsconfig.prod.json"
   },
   "keywords": [
     "signaling",
@@ -19,8 +19,9 @@
     "ws": "^8.4.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.2.2",
     "@types/jest": "^27.4.0",
+    "@types/node": "^17.0.5",
+    "@types/ws": "^8.2.2",
     "jest": "^27.4.5",
     "ts-jest": "^27.1.2",
     "typescript": "^4.5.4"
