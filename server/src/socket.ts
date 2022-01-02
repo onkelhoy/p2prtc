@@ -38,13 +38,11 @@ reactor.addEventListener(ReactorEvents.RoomRemove, removeroom);
 export function startup(server:http.Server, setClientInfo?: (socket: ISocket, request: http.IncomingMessage) => SocketInfo) {
   wss = new ws.WebSocketServer({ server });
   wss.on('connection', function (socket: ISocket, request) {
-    socket.id = getID();
-    welcome(socket);
-
     if (setClientInfo) {
       socket.info = setClientInfo(socket, request);
     }
-  
+    welcome(socket);
+
     socket.onmessage = onmessage;
     socket.onclose = onclose;
     socket.on("pong", function () {
@@ -240,6 +238,9 @@ function welcome(socket: ISocket) {
   rooms.forEach(room => roomsinfo.push(room.info));
 
   socket.is_alive = true;
+  socket.id = getID();
+  socket.rooms = [];
+  
   socketmap.set(socket.id, socket);
   // send all available rooms
   send({
