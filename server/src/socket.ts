@@ -1,21 +1,30 @@
 import ws from 'ws';
+import http from 'http';
 import chalk from 'chalk';
 import { Reactor } from 'reactor';
 import { ReactorEvents, ID, SendEvent } from 'types';
-import { ISocket, MessageCategory, MessageType, SocketMessage, TargetMessage } from 'types/socket';
+import { ISocket, MessageCategory, MessageType, SocketInfo, SocketMessage, TargetMessage } from 'types/socket';
 import { Room } from 'room';
 import { RoomMessage, RoomType, RoomInfo, RoomIncommingMessage, WelcomeMessage, RoomJoinMessage, RoomTargetMessage } from 'types/room';
 
 const reactor = new Reactor();
-const wss = new ws.WebSocketServer({ noServer: true });
 const socketmap = new Map<ID, ISocket>();
 const rooms = new Map<ID, Room>();
+let wss:ws.WebSocketServer;
+let heartbeat_timer: NodeJS.Timer;
+const idcounter = {
+  first: 0,
+  second: 0,
+  third: 0,
+}
+//  = new ws.WebSocketServer({ noServer: true });
 
 // CONSTANTS
 const SPAM_DURATION = Number(process.env.SPAM_DURATION || 200);
 const SPAM_RESET = Number(process.env.SPAM_RESET || 1500);
 const MAX_STRIKES = Number(process.env.MAX_STRIKES || 3);
 const HEARTBEAT_INTERVAL = Number(process.env.HEARTBEAT_INTERVAL || 2000);
+const ID_MAX = Number(process.env.ID_MAX || 2000);
 
 // register the events
 reactor.register(ReactorEvents.Send);
@@ -25,32 +34,55 @@ reactor.register(ReactorEvents.RoomRemove);
 reactor.addEventListener(ReactorEvents.Send, send);
 reactor.addEventListener(ReactorEvents.RoomRemove, removeroom);
 
-wss.on('connection', function (socket: ISocket, request) {
-  welcome(socket);
 
-  socket.onmessage = onmessage;
-  socket.onclose = onclose;
-  socket.on("pong", function () {
-    socket.is_alive = true;
-  })
-});
+export function startup(server:http.Server, setClientInfo?: (socket: ISocket, request: http.IncomingMessage) => SocketInfo) {
+  wss = new ws.WebSocketServer({ server });
+  wss.on('connection', function (socket: ISocket, request) {
+    socket.id = getID();
+    welcome(socket);
 
-wss.on("error", function (err) {
-  printerror(err.message);
-});
-
-// heartbeat
-setInterval(function () {
-  socketmap.forEach(socket => {
-    if (!socket.is_alive) {
-      socket.close();
+    if (setClientInfo) {
+      socket.info = setClientInfo(socket, request);
     }
-    else {
-      socket.is_alive = false;
-      socket.ping();
-    }
+  
+    socket.onmessage = onmessage;
+    socket.onclose = onclose;
+    socket.on("pong", function () {
+      socket.is_alive = true;
+    })
   });
-}, HEARTBEAT_INTERVAL)
+  
+  wss.on("error", function (err) {
+    printerror(err.message);
+  });
+  
+  // heartbeat
+  heartbeat_timer = setInterval(function () {
+    socketmap.forEach(socket => {
+      if (!socket.is_alive) {
+        socket.close();
+      }
+      else {
+        socket.is_alive = false;
+        socket.ping();
+      }
+    });
+  }, HEARTBEAT_INTERVAL);
+}
+
+export function teardown() {
+  for (const socket of wss.clients) {
+    socket.terminate();
+  }
+
+  idcounter.first = 0;
+  idcounter.second = 0;
+  idcounter.third = 0;
+
+  wss.close();
+
+  clearInterval(heartbeat_timer);
+}
 
 // event functions
 function send(event: SendEvent) {
@@ -242,4 +274,23 @@ function printerror(error:string) {
     chalk.yellow(performance.now()),
     chalk.redBright(error)
   );
+}
+
+function getID():ID {
+  idcounter.first++;
+  if (idcounter.first > ID_MAX) {
+    idcounter.first = 0;
+    idcounter.second++;
+
+    if (idcounter.second > ID_MAX) {
+      idcounter.second = 0;
+      idcounter.third++;
+
+      if (idcounter.third > ID_MAX) {
+        idcounter.third = 0;
+      }
+    }
+  }
+
+  return `${idcounter.first}${idcounter.second}${idcounter.third}`;
 }
