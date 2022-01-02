@@ -1,22 +1,9 @@
-import { ID, SendEvent } from 'types';
-import { MessageCategory } from 'types/socket.msg';
-import { RoomMessage, RoomType, UnothorizedReason } from 'types/room.msg';
-import { ISocket, ISocketSimple, SocketInfo } from 'types/socket';
+import { ID, ReactorEvents, SendEvent } from 'types';
+import { RoomMessage, RoomType, UnothorizedReason, RoomConfig, RoomInfo } from 'types/room';
+import { ISocketSimple, SocketInfo, MessageCategory } from 'types/socket';
 import { Reactor } from 'reactor';
 
 const reactor = new Reactor();
-
-interface RoomConfig {
-  limit?: number;
-  password?: string;
-  name: string;
-  id: ID;
-}
-
-enum Events {
-  Send = "socket-send",
-  RoomRemove = "room-remove",
-}
 
 export class Room {
   private sockets!: Map<ID, SocketInfo>;
@@ -37,14 +24,14 @@ export class Room {
     this.banned = new Set();
     
     // register events
-    if (!reactor.has(Events.Send)) reactor.register(Events.Send);
-    if (!reactor.has(Events.RoomRemove)) reactor.register(Events.RoomRemove);
+    if (!reactor.has(ReactorEvents.Send)) reactor.register(ReactorEvents.Send);
+    if (!reactor.has(ReactorEvents.RoomRemove)) reactor.register(ReactorEvents.RoomRemove);
     
     // join the creator
     this.join(creator, this.password);
   }
 
-  private canjoin(socket: ID, password?: string): UnothorizedReason|null {
+  private cantjoin(socket: ID, password?: string): UnothorizedReason|null {
     if (this.limit === this.sockets.size) return UnothorizedReason.Full;
     if (this.banned.has(socket)) return UnothorizedReason.Banned;
     if (this.sockets.has(socket)) return UnothorizedReason.Duplicate;
@@ -57,7 +44,7 @@ export class Room {
     if (socket !== this.host) {
       // send (room unothorized)
       reactor.dispatch(
-        Events.Send, 
+        ReactorEvents.Send, 
         this.getmessage(socket, { reason: UnothorizedReason.NotHost, type: RoomType.Unothorized })
       );
       return false;
@@ -74,13 +61,6 @@ export class Room {
     }
   }
 
-  private get clientids() {
-    const ids: ID[] = [];
-    this.sockets.forEach((_info, id) => ids.push(id));
-
-    return ids;
-  }
-
   private get clients() {
     const clients: ISocketSimple[] = [];
     this.sockets.forEach((info, id) => clients.push({ id, info }));
@@ -88,29 +68,52 @@ export class Room {
     return clients;
   }
 
+  public get info(): RoomInfo {
+    return {
+      limit: this.limit,
+      name: this.name,
+      locked: !!this.password,
+      id: this.id,
+    }
+  }
   public get size() { // mainly for testing
     return this.sockets.size;
   }
+  public get clientids() {
+    const ids: ID[] = [];
+    this.sockets.forEach((_info, id) => ids.push(id));
+
+    return ids;
+  }
   public join(socket: ISocketSimple, password?: string) {
-    const reason = this.canjoin(socket.id, password);
+    const reason = this.cantjoin(socket.id, password);
     if (!reason) {
-      // broadcast to room that client joined 
-      reactor.dispatch(
-        Events.Send,
-        this.getmessage(this.clientids, { type: RoomType.Join, sockets: [socket] })
-      );
-      // send to socket all client infos
-      reactor.dispatch(
-        Events.Send,
-        this.getmessage(socket.id, { type: RoomType.Join, sockets: [this.clients] })
-      );
+      if (this.size > 0) {
+        // broadcast to room that client joined 
+        reactor.dispatch(
+          ReactorEvents.Send,
+          this.getmessage(this.clientids, { type: RoomType.Join, socket })
+        );
+        // send to socket all client infos
+        reactor.dispatch(
+          ReactorEvents.Send,
+          this.getmessage(socket.id, { type: RoomType.Welcome, sockets: this.clients, room: this.id, host: this.host })
+        );
+      }
+      else {
+        // send welcome message confirming room creation and host
+        reactor.dispatch(
+          ReactorEvents.Send,
+          this.getmessage(socket.id, { type: RoomType.Created, room: this.id })
+        );
+      }
 
       this.sockets.set(socket.id, socket.info);
     }
     else {
       // use reason to send unothorized message
       reactor.dispatch(
-        Events.Send, 
+        ReactorEvents.Send, 
         this.getmessage(socket.id, { reason, type: RoomType.Unothorized })
       );
     }
@@ -120,23 +123,24 @@ export class Room {
 
     if (this.sockets.size <= 0) {
       // parent should now remove the room
-      reactor.dispatch(Events.RoomRemove, this.id);
+      reactor.dispatch(ReactorEvents.RoomRemove, this.id);
+      return;
     }
-    else if (this.host === socket) {
+
+    // socket leave room
+    reactor.dispatch(
+      ReactorEvents.Send, 
+      this.getmessage(this.clientids, { type: RoomType.Leave, socket, room: this.id }),
+    );
+
+    if (this.host === socket) {
       const next = this.sockets.keys().next();
       this.host = next.value;
       
       // host change
       reactor.dispatch(
-        Events.Send, 
-        this.getmessage(this.clientids, { type: RoomType.Host, socket: this.host }),
-      );
-    }
-    else {
-      // socket leave room
-      reactor.dispatch(
-        Events.Send, 
-        this.getmessage(this.clientids, { type: RoomType.Leave, socket: socket }),
+        ReactorEvents.Send, 
+        this.getmessage(this.clientids, { type: RoomType.Host, host: this.host }),
       );
     }
   }

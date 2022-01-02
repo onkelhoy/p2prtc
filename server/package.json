@@ -16,6 +16,7 @@
   "author": "Henry Pap",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^5.0.0",
     "ws": "^8.4.0"
   },
   "devDependencies": {
