@@ -1,297 +1,307 @@
 import ws from 'ws';
-import http from 'http';
 import chalk from 'chalk';
+import { IncomingMessage } from 'http';
+
+// import local modules
+import { Room } from 'room';
 import { Reactor } from 'reactor';
+
+// import types
 import { ReactorEvents, ID, SendEvent } from 'types';
 import { ISocket, MessageCategory, MessageType, SocketInfo, SocketMessage, TargetMessage } from 'types/socket';
-import { Room } from 'room';
 import { RoomMessage, RoomType, RoomInfo, RoomIncommingMessage, WelcomeMessage, RoomJoinMessage, RoomTargetMessage } from 'types/room';
 
+export interface ServerOptions extends ws.ServerOptions {
+  setClientInfo?(socket: ISocket, request: IncomingMessage): SocketInfo;
+  heartbeat_interval?: number;
+  spam_duration?: number;
+  spam_reset?: number;
+  id_max?: number;
+  strikes?: number;
+}
+
 const reactor = new Reactor();
-const socketmap = new Map<ID, ISocket>();
-const rooms = new Map<ID, Room>();
-let wss:ws.WebSocketServer;
-let heartbeat_timer: NodeJS.Timer;
-const idcounter = {
-  first: 0,
-  second: 0,
-  third: 0,
-}
-//  = new ws.WebSocketServer({ noServer: true });
+export class SocketServer extends ws.WebSocketServer {
 
-// CONSTANTS
-const SPAM_DURATION = Number(process.env.SPAM_DURATION || 200);
-const SPAM_RESET = Number(process.env.SPAM_RESET || 1500);
-const MAX_STRIKES = Number(process.env.MAX_STRIKES || 3);
-const HEARTBEAT_INTERVAL = Number(process.env.HEARTBEAT_INTERVAL || 2000);
-const ID_MAX = Number(process.env.ID_MAX || 2000);
+  private heartbeat_timer: NodeJS.Timer;
+  private rooms!: Map<ID, Room>; 
+  private sockets!: Map<ID, ISocket>;
+  // NOTE id-counter is used to tick up the current id
+  private idc = {
+    first: 0,
+    second: 0,
+    third: 0,
+  }
+  options!: ServerOptions;
 
-// register the events
-reactor.register(ReactorEvents.Send);
-reactor.register(ReactorEvents.RoomRemove);
+  constructor(options: ServerOptions, callback?: (() => void) | undefined) {
+    super(options, callback);
 
-// add event listeners
-reactor.addEventListener(ReactorEvents.Send, send);
-reactor.addEventListener(ReactorEvents.RoomRemove, removeroom);
-
-
-export function startup(server:http.Server, setClientInfo?: (socket: ISocket, request: http.IncomingMessage) => SocketInfo) {
-  wss = new ws.WebSocketServer({ server });
-  wss.on('connection', function (socket: ISocket, request) {
-    if (setClientInfo) {
-      socket.info = setClientInfo(socket, request);
-    }
-    welcome(socket);
-
-    socket.onmessage = onmessage;
-    socket.onclose = onclose;
-    socket.on("pong", function () {
-      socket.is_alive = true;
-    })
-  });
+    this.on('connection', (socket: ISocket, request) => {
+      if (this.options.setClientInfo) {
+        socket.info = this.options.setClientInfo(socket, request);
+      }
+      this.welcome(socket, request);
   
-  wss.on("error", function (err) {
-    printerror(err.message);
-  });
-  
-  // heartbeat
-  heartbeat_timer = setInterval(function () {
-    socketmap.forEach(socket => {
-      if (!socket.is_alive) {
-        socket.close();
-      }
-      else {
-        socket.is_alive = false;
-        socket.ping();
-      }
-    });
-  }, HEARTBEAT_INTERVAL);
-}
-
-export function teardown() {
-  for (const socket of wss.clients) {
-    socket.terminate();
-  }
-
-  idcounter.first = 0;
-  idcounter.second = 0;
-  idcounter.third = 0;
-
-  wss.close();
-
-  clearInterval(heartbeat_timer);
-}
-
-// event functions
-function send(event: SendEvent) {
-  const message = JSON.stringify(event.message);
-
-  for (const id of event.sockets) {
-    const socket = socketmap.get(id);
-    if (socket) {
-      if (event.message.type === RoomType.Welcome) socket.rooms.push(event.message.room);
-      if (event.message.type === RoomType.Leave) socket.rooms = socket.rooms.filter(id => id !== event.message.room);
-      socket.send(message);
-    }
-  }
-}
-
-function removeroom(id:ID) {
-  const room = rooms.get(id);
-  if (room) {
-    // should never happen (as a room is only removed when empty but..)
-    const sids = room.clientids;
-    for (const sid of sids) {
-      const socket = socketmap.get(sid);
-      if (socket) {
-        socket.rooms = socket.rooms.filter(room => room !== id);
-      }
-    }
-    rooms.delete(id);
-  }
-}
-
-function onmessage(this:ISocket, event: ws.MessageEvent) {
-  if (spamcheck(this)) {
-    printerror(`socket ${this.id} is spamming server`);
-    this.close();
-    return;
-  }
-
-  const message = JSON.parse(event.data as string) as SocketMessage;
-
-  switch (message.category) {
-    case MessageCategory.Room: {
-      roomIncommingMessage(this, message as RoomMessage);
-      break;
-    }
-    case MessageCategory.Socket: {
-      socketIncommingMessage(this, message as SocketMessage);
-      break;
-    }
-    default: {
-      send({
-        sockets: [this.id],
-        message: {
-          category: MessageCategory.Socket,
-          type: MessageType.Error,
-          error: `incoming message with wrong category ${message.category}`
-        }
-      });
-    }
-  }
-}
-
-function onclose(this: ISocket) {
-  for (const id of this.rooms) {
-    const room = rooms.get(id);
-
-    if (room) {
-      room.leave(this.id);
-    }
-  }
-
-  socketmap.delete(this.id);
-}
-// message functions
-function roomIncommingMessage(socket: ISocket, message: RoomMessage) {
-  if (message.type === RoomType.Create) {
-
-    return;
-  }
-
-  const { room:roomid } = message as RoomIncommingMessage;
-  const room = rooms.get(roomid);
-  if (!room) {
-    send({
-      sockets: [socket.id],
-      message: { category: MessageCategory.Room, type: RoomType.NotFound } as RoomMessage
-    });
-
-    return;
-  }
-
-  switch (message.type) {
-    case RoomType.Join: {
-      const { password } = message as RoomJoinMessage;
-      room.join(socket, password);
-      break;
-    }
-    case RoomType.Leave: {
-      room.leave(socket.id);
-      break;
-    }
-    case RoomType.Kick: {
-      const { socket:target } = message as RoomTargetMessage;
-      room.kick(socket.id, target);
-      break;
-    }
-    case RoomType.Ban: {
-      const { socket:target } = message as RoomTargetMessage;
-      room.ban(socket.id, target);
-      break;
-    }
-    case RoomType.Unban: {
-      const { socket:target } = message as RoomTargetMessage;
-      room.unban(socket.id, target);
-      break;
-    }
-    default: {
-      send({
-        sockets: [socket.id],
-        message: {
-          category: MessageCategory.Socket,
-          type: MessageType.Error,
-          error: `room incoming message of unknown type ${message.type}`
-        }
+      socket.onmessage = this.onclientmessage();
+      socket.onclose = this.onclientclose();
+      socket.on("pong", function () {
+        socket.is_alive = true;
       })
-    }
-  }
-}
+    });
+    
+    this.on("error", (err) => {
+      this.printerror(err.message);
+    });
 
-function socketIncommingMessage(socket: ISocket, message: SocketMessage) {
-  switch (message.type) {
-    case MessageType.Target: {
-      const { socket:socketid } = message as TargetMessage;
-      send({
-        sockets: [socketid],
-        message,
-      });
-      break;
-    }
-    default: {
-      send({
-        sockets: [socket.id],
-        message: {
-          category: MessageCategory.Socket,
-          type: MessageType.Error,
-          error: `incoming socket-message with wrong type ${message.type}`
+    // register the events
+    reactor.register(ReactorEvents.Send);
+    reactor.register(ReactorEvents.RoomRemove);
+
+    // add event listeners
+    reactor.addEventListener(ReactorEvents.Send, this.send);
+    reactor.addEventListener(ReactorEvents.RoomRemove, this.removeroom);
+
+    // heartbeat
+    this.heartbeat_timer = setInterval(() => {
+      this.sockets.forEach(socket => {
+        if (!socket.is_alive) {
+          socket.close();
+        }
+        else {
+          socket.is_alive = false;
+          socket.ping();
         }
       });
-    }
-  }
-}
-
-// helper functions
-function welcome(socket: ISocket) {
-  const roomsinfo: RoomInfo[] = [];
-  rooms.forEach(room => roomsinfo.push(room.info));
-
-  socket.is_alive = true;
-  socket.id = getID();
-  socket.rooms = [];
-  
-  socketmap.set(socket.id, socket);
-  // send all available rooms
-  send({
-    sockets: [socket.id],
-    message: {
-      category: MessageCategory.Socket,
-      type: MessageType.Welcome,
-      rooms: roomsinfo
-    } as WelcomeMessage,
-  });
-}
-
-function spamcheck (socket: ISocket):boolean {
-  if (socket.lastmessage) {
-    const duration = performance.now() - socket.lastmessage;
-    if (duration < SPAM_DURATION) {
-      // user sent message before duration time has passed, user should have MAXSTRIKES strikes and then banned
-      socket.strike++;
-    }
-    else if (duration >= SPAM_RESET) {
-      socket.strike = 0;
-    }
+    }, this.options.heartbeat_interval || 2000);
   }
 
-  socket.lastmessage = performance.now();
-  return socket.strike >= MAX_STRIKES;
-}
+  getClient (id:ID) {
+    return this.sockets.get(id);
+  }
 
-function printerror(error:string) {
-  console.log(
-    chalk.bgBlue.white("socket server error"),
-    chalk.yellow(performance.now()),
-    chalk.redBright(error)
-  );
-}
+  private send(event: SendEvent): void {
+    const message = JSON.stringify(event.message);
 
-function getID():ID {
-  idcounter.first++;
-  if (idcounter.first > ID_MAX) {
-    idcounter.first = 0;
-    idcounter.second++;
-
-    if (idcounter.second > ID_MAX) {
-      idcounter.second = 0;
-      idcounter.third++;
-
-      if (idcounter.third > ID_MAX) {
-        idcounter.third = 0;
+    for (const id of event.sockets) {
+      const socket = this.sockets.get(id);
+      if (socket) {
+        if (event.message.type === RoomType.Welcome) socket.rooms.push(event.message.room);
+        if (event.message.type === RoomType.Leave) socket.rooms = socket.rooms.filter(id => id !== event.message.room);
+        socket.send(message);
       }
     }
   }
+  private removeroom(id:ID) {
+    const room = this.rooms.get(id);
+    if (room) {
+      // should never happen (as a room is only removed when empty but..)
+      const sids = room.clientids;
+      for (const sid of sids) {
+        const socket = this.sockets.get(sid);
+        if (socket) {
+          socket.rooms = socket.rooms.filter(room => room !== id);
+        }
+      }
+      this.rooms.delete(id);
+    }
+  }
+  private onclientmessage() {
+    const wss = this;
+    return function (this: ISocket, event: ws.MessageEvent) {
+      if (wss.spamcheck(this)) {
+        wss.printerror(`socket ${this.id} is spamming server`);
+        this.close();
+        return;
+      }
+    
+      const message = JSON.parse(event.data as string) as SocketMessage;
+    
+      switch (message.category) {
+        case MessageCategory.Room: {
+          wss.roomIncommingMessage(this, message as RoomMessage);
+          break;
+        }
+        case MessageCategory.Socket: {
+          wss.socketIncommingMessage(this, message as SocketMessage);
+          break;
+        }
+        default: {
+          wss.send({
+            sockets: [this.id],
+            message: {
+              category: MessageCategory.Socket,
+              type: MessageType.Error,
+              error: `incoming message with wrong category ${message.category}`
+            }
+          });
+        }
+      }
+    }
+  }
+  private onclientclose() {
+    const wss = this;
+    return function(this: ISocket) {
+      for (const id of this.rooms) {
+        const room = wss.rooms.get(id);
+    
+        if (room) {
+          room.leave(this.id);
+        }
+      }
+    
+      wss.sockets.delete(this.id);
+    }
+  }
+  private roomIncommingMessage(socket: ISocket, message: RoomMessage) {
+    if (message.type === RoomType.Create) {
+  
+      return;
+    }
+  
+    const { room:roomid } = message as RoomIncommingMessage;
+    const room = this.rooms.get(roomid);
+    if (!room) {
+      this.send({
+        sockets: [socket.id],
+        message: { category: MessageCategory.Room, type: RoomType.NotFound } as RoomMessage
+      });
+  
+      return;
+    }
+  
+    switch (message.type) {
+      case RoomType.Join: {
+        const { password } = message as RoomJoinMessage;
+        room.join(socket, password);
+        break;
+      }
+      case RoomType.Leave: {
+        room.leave(socket.id);
+        break;
+      }
+      case RoomType.Kick: {
+        const { socket:target } = message as RoomTargetMessage;
+        room.kick(socket.id, target);
+        break;
+      }
+      case RoomType.Ban: {
+        const { socket:target } = message as RoomTargetMessage;
+        room.ban(socket.id, target);
+        break;
+      }
+      case RoomType.Unban: {
+        const { socket:target } = message as RoomTargetMessage;
+        room.unban(socket.id, target);
+        break;
+      }
+      default: {
+        this.send({
+          sockets: [socket.id],
+          message: {
+            category: MessageCategory.Socket,
+            type: MessageType.Error,
+            error: `room incoming message of unknown type ${message.type}`
+          }
+        })
+      }
+    }
+  }
+  private socketIncommingMessage(socket: ISocket, message: SocketMessage) {
+    switch (message.type) {
+      case MessageType.Target: {
+        const { socket:socketid } = message as TargetMessage;
+        this.send({
+          sockets: [socketid],
+          message,
+        });
+        break;
+      }
+      default: {
+        this.send({
+          sockets: [socket.id],
+          message: {
+            category: MessageCategory.Socket,
+            type: MessageType.Error,
+            error: `incoming socket-message with wrong type ${message.type}`
+          }
+        });
+      }
+    }
+  }
+  private welcome(socket: ISocket, request: IncomingMessage) {
+    const roomsinfo: RoomInfo[] = [];
+    this.rooms.forEach(room => roomsinfo.push(room.info));
 
-  return `${idcounter.first}${idcounter.second}${idcounter.third}`;
+    socket.is_alive = true;
+    socket.id = this.getID();
+    socket.rooms = [];
+
+    this.sockets.set(socket.id, socket);
+    // send all available rooms
+    this.send({
+      sockets: [socket.id],
+      message: {
+        category: MessageCategory.Socket,
+        type: MessageType.Welcome,
+        rooms: roomsinfo
+      } as WelcomeMessage,
+    });
+  }
+  private spamcheck(socket: ISocket):boolean {
+    if (socket.lastmessage) {
+      const duration = performance.now() - socket.lastmessage;
+      if (duration < (this.options.spam_duration || 200)) {
+        // user sent message before duration time has passed, user should have MAXSTRIKES strikes and then banned
+        socket.strike++;
+      }
+      else if (duration >= (this.options.spam_reset || 1500)) {
+        socket.strike = 0;
+      }
+    }
+  
+    socket.lastmessage = performance.now();
+    return socket.strike >= (this.options.strikes || 5);
+  }
+  private printerror(error:string) {
+    console.log(
+      chalk.bgBlue.white("socket server error"),
+      chalk.yellow(performance.now()),
+      chalk.redBright(error)
+    );
+  }
+  private getID(): ID {
+    this.idc.first++;
+    const id_max = this.options.id_max || 2000;
+    if (this.idc.first > id_max) {
+      this.idc.first = 0;
+      this.idc.second++;
+
+      if (this.idc.second > id_max) {
+        this.idc.second = 0;
+        this.idc.third++;
+
+        if (this.idc.third > id_max) {
+          this.idc.third = 0;
+        }
+      }
+    }
+
+    return `${this.idc.first}${this.idc.second}${this.idc.third}`;
+  }
+
+  // override functions 
+  close() {
+    for (const socket of this.clients) {
+      socket.terminate();
+    }
+  
+    this.idc.first = 0;
+    this.idc.second = 0;
+    this.idc.third = 0;
+  
+    super.close();
+  
+    clearInterval(this.heartbeat_timer);
+  }
 }

@@ -2,21 +2,23 @@
  * @jest-environment jsdom
  */
 
-import { InitSocketServer } from 'socket';
+import * as socketserver from 'socket';
+import http from 'http';
 import chalk from 'chalk';
-import { MessageType, SocketMessage } from 'utils/types';
-import * as server from 'server';
+import { MessageType, SocketMessage } from 'types/socket';
 
 // ############ SETUP #####################
 
 beforeAll(() => {
   console.log(chalk.yellow('Server startup'));
-  server.startup();
+  socketserver.startup({
+    socketserver: http.createServer()
+  });
 });
 
 afterAll(() => {
   console.log(chalk.yellow('Server teardown'));
-  server.teardown();
+  socketserver.teardown();
 });
 
 describe('Connection Test', () => {
@@ -28,14 +30,14 @@ describe('Connection Test', () => {
 
   });
 
-  it('Should handle room creation', () => {
-
-  });
-
   it('Should prevent spamming', () => {
 
   });
 });
+
+describe('', () => {
+
+})
 
 // helper functions 
 

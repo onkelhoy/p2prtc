@@ -8,7 +8,7 @@ export interface SocketInfo extends Object {
 }
 
 export interface ISocket extends WebSocket {
-  info: SocketInfo; 
+  info?: SocketInfo; 
   id: ID;
   rooms: ID[];
   strike: number;
