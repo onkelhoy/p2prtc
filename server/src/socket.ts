@@ -1,5 +1,4 @@
 import ws from 'ws';
-import chalk from 'chalk';
 import { IncomingMessage } from 'http';
 
 // import local modules
@@ -9,14 +8,14 @@ import { Reactor } from 'reactor';
 // import types
 import { ReactorEvents, ID, SendEvent } from 'types';
 import { ISocket, MessageCategory, MessageType, SocketInfo, SocketMessage, TargetMessage } from 'types/socket';
-import { RoomMessage, RoomType, RoomInfo, RoomIncommingMessage, WelcomeMessage, RoomJoinMessage, RoomTargetMessage } from 'types/room';
+import { RoomMessage, RoomType, RoomInfo, RoomIncommingMessage, WelcomeMessage, RoomJoinMessage, RoomTargetMessage, RoomCreateMessage } from 'types/room';
 
 export interface ServerOptions extends ws.ServerOptions {
   setClientInfo?(socket: ISocket, request: IncomingMessage): SocketInfo;
+  setClientID?(request: IncomingMessage): ID;
   heartbeat_interval?: number;
   spam_duration?: number;
   spam_reset?: number;
-  id_max?: number;
   strikes?: number;
 }
 
@@ -24,18 +23,18 @@ const reactor = new Reactor();
 export class SocketServer extends ws.WebSocketServer {
 
   private heartbeat_timer: NodeJS.Timer;
-  private rooms!: Map<ID, Room>; 
-  private sockets!: Map<ID, ISocket>;
-  // NOTE id-counter is used to tick up the current id
-  private idc = {
-    first: 0,
-    second: 0,
-    third: 0,
-  }
+  private roomid!: number;
+
+  public rooms!: Map<ID, Room>; 
+  public sockets!: Map<ID, ISocket>;
+
   options!: ServerOptions;
 
   constructor(options: ServerOptions, callback?: (() => void) | undefined) {
     super(options, callback);
+    this.rooms = new Map();
+    this.sockets = new Map();
+    this.roomid = 0;
 
     this.on('connection', (socket: ISocket, request) => {
       if (this.options.setClientInfo) {
@@ -59,8 +58,8 @@ export class SocketServer extends ws.WebSocketServer {
     reactor.register(ReactorEvents.RoomRemove);
 
     // add event listeners
-    reactor.addEventListener(ReactorEvents.Send, this.send);
-    reactor.addEventListener(ReactorEvents.RoomRemove, this.removeroom);
+    reactor.addEventListener(ReactorEvents.Send, this.send.bind(this));
+    reactor.addEventListener(ReactorEvents.RoomRemove, this.removeroom.bind(this));
 
     // heartbeat
     this.heartbeat_timer = setInterval(() => {
@@ -74,10 +73,6 @@ export class SocketServer extends ws.WebSocketServer {
         }
       });
     }, this.options.heartbeat_interval || 2000);
-  }
-
-  getClient (id:ID) {
-    return this.sockets.get(id);
   }
 
   private send(event: SendEvent): void {
@@ -115,27 +110,39 @@ export class SocketServer extends ws.WebSocketServer {
         return;
       }
     
-      const message = JSON.parse(event.data as string) as SocketMessage;
-    
-      switch (message.category) {
-        case MessageCategory.Room: {
-          wss.roomIncommingMessage(this, message as RoomMessage);
-          break;
+      try {
+        const message = JSON.parse(event.data as string) as SocketMessage;
+        switch (message.category) {
+          case MessageCategory.Room: {
+            wss.roomIncommingMessage(this, message as RoomMessage);
+            break;
+          }
+          case MessageCategory.Socket: {
+            wss.socketIncommingMessage(this, message as SocketMessage);
+            break;
+          }
+          default: {
+            wss.send({
+              sockets: [this.id],
+              message: {
+                category: MessageCategory.Socket,
+                type: MessageType.Error,
+                error: `incoming message with wrong category ${message.category}`
+              }
+            });
+          }
         }
-        case MessageCategory.Socket: {
-          wss.socketIncommingMessage(this, message as SocketMessage);
-          break;
-        }
-        default: {
-          wss.send({
-            sockets: [this.id],
-            message: {
-              category: MessageCategory.Socket,
-              type: MessageType.Error,
-              error: `incoming message with wrong category ${message.category}`
-            }
-          });
-        }
+      }
+      catch (error) {
+        // NOTE this most likely failed at parse level
+        wss.send({
+          sockets: [this.id],
+          message: {
+            category: MessageCategory.Socket,
+            type: MessageType.Error,
+            error: `unsupported message`
+          }
+        });
       }
     }
   }
@@ -155,7 +162,10 @@ export class SocketServer extends ws.WebSocketServer {
   }
   private roomIncommingMessage(socket: ISocket, message: RoomMessage) {
     if (message.type === RoomType.Create) {
-  
+      const { config } = message as RoomCreateMessage;
+      this.roomid++;
+      const room = new Room(socket, { ...config, id: this.roomid.toString() });
+      this.rooms.set(room.id, room);
       return;
     }
   
@@ -232,10 +242,12 @@ export class SocketServer extends ws.WebSocketServer {
   private welcome(socket: ISocket, request: IncomingMessage) {
     const roomsinfo: RoomInfo[] = [];
     this.rooms.forEach(room => roomsinfo.push(room.info));
-
+    
     socket.is_alive = true;
-    socket.id = this.getID();
     socket.rooms = [];
+    socket.id = this.getID(request); 
+    socket.strike = 0;
+    // NOTE duplicate id will be replaced
 
     this.sockets.set(socket.id, socket);
     // send all available rooms
@@ -249,57 +261,44 @@ export class SocketServer extends ws.WebSocketServer {
     });
   }
   private spamcheck(socket: ISocket):boolean {
+    const maxstrikes = (this.options.strikes || 5);
     if (socket.lastmessage) {
       const duration = performance.now() - socket.lastmessage;
       if (duration < (this.options.spam_duration || 200)) {
         // user sent message before duration time has passed, user should have MAXSTRIKES strikes and then banned
         socket.strike++;
       }
-      else if (duration >= (this.options.spam_reset || 1500)) {
+      else if (socket.strike < maxstrikes && duration >= (this.options.spam_reset || 1500)) {
         socket.strike = 0;
       }
     }
   
     socket.lastmessage = performance.now();
-    return socket.strike >= (this.options.strikes || 5);
+    return socket.strike >= maxstrikes;
   }
   private printerror(error:string) {
     console.log(
-      chalk.bgBlue.white("socket server error"),
-      chalk.yellow(performance.now()),
-      chalk.redBright(error)
+      "socket server error",
+      performance.now(),
+      error,
     );
   }
-  private getID(): ID {
-    this.idc.first++;
-    const id_max = this.options.id_max || 2000;
-    if (this.idc.first > id_max) {
-      this.idc.first = 0;
-      this.idc.second++;
+  private getID(req: IncomingMessage): ID {
+    if (this.options.setClientID) 
+      return this.options.setClientID(req);
 
-      if (this.idc.second > id_max) {
-        this.idc.second = 0;
-        this.idc.third++;
-
-        if (this.idc.third > id_max) {
-          this.idc.third = 0;
-        }
-      }
-    }
-
-    return `${this.idc.first}${this.idc.second}${this.idc.third}`;
+    return `${req.headers['user-agent']} ${req.socket.remoteAddress}`;
   }
 
   // override functions 
   close() {
+    reactor.removeEventListener(ReactorEvents.Send, this.send);
+    reactor.removeEventListener(ReactorEvents.RoomRemove, this.removeroom);
+
     for (const socket of this.clients) {
       socket.terminate();
     }
-  
-    this.idc.first = 0;
-    this.idc.second = 0;
-    this.idc.third = 0;
-  
+
     super.close();
   
     clearInterval(this.heartbeat_timer);

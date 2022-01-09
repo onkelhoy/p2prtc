@@ -6,7 +6,7 @@ import { Reactor } from 'reactor';
 const reactor = new Reactor();
 
 export class Room {
-  private sockets!: Map<ID, SocketInfo>;
+  private sockets!: Map<ID, SocketInfo|undefined>;
   private password!: string|undefined;
   private limit!: number;
   private banned!: Set<ID>;

@@ -2,11 +2,14 @@
   "name": "network-server",
   "version": "1.0.0",
   "description": "signaling server",
-  "main": "index.js",
+  "main": "out/index.js",
   "scripts": {
     "test": "jest",
     "watch": "tsc -w --noEmit",
-    "build": "tsc --project tsconfig.prod.json"
+    "prebuild": "rm -f -r out",
+    "build": "tsc --project tsconfig.prod.json",
+    "prestart": "npm run build",
+    "start": "node ."
   },
   "keywords": [
     "signaling",

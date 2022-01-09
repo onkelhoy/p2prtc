@@ -1,10 +1,12 @@
 import { ID } from 'types';
 import { SocketMessage, MessageCategory, MessageType } from 'types/socket';
 
-export interface RoomConfig {
+interface RoomCreateConfig {
   limit?: number;
   password?: string;
   name: string;
+}
+export interface RoomConfig extends RoomCreateConfig {
   id: ID;
 }
 
@@ -45,8 +47,13 @@ export interface WelcomeMessage extends SocketMessage {
 }
 
 export interface RoomMessage extends SocketMessage {
-  category: MessageCategory.Room,
+  category: MessageCategory.Room;
   type: RoomType;
+}
+
+export interface RoomCreateMessage extends RoomMessage {
+  type: RoomType.Create;
+  config: RoomCreateConfig;
 }
 
 export interface UnothorizedMessage extends RoomMessage {
