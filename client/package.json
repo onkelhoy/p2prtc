@@ -1,0 +1,28 @@
+{
+  "name": "network-client",
+  "version": "1.0.0",
+  "description": "p2p network client part",
+  "main": "out/index.js",
+  "scripts": {
+    "test": "jest",
+    "watch": "tsc -w --noEmit",
+    "prebuild": "rm -f -r out",
+    "build": "tsc --project tsconfig.prod.json",
+    "prestart": "npm run build",
+    "start": "node ."
+  },
+  "keywords": [
+    "websocket",
+    "networking",
+    "p2p"
+  ],
+  "author": "Henry Pap",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^27.4.0",
+    "@types/node": "^17.0.8",
+    "jest": "^27.4.7",
+    "ts-jest": "^27.1.2",
+    "typescript": "^4.5.4"
+  }
+}

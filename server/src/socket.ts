@@ -1,45 +1,32 @@
 import ws from 'ws';
-import { IncomingMessage } from 'http';
-
-// import local modules
-import { Room } from 'room';
-import { Reactor } from 'reactor';
+import http from 'http';
 
 // import types
-import { ReactorEvents, ID, SendEvent } from 'types';
-import { ISocket, MessageCategory, MessageType, SocketInfo, SocketMessage, TargetMessage } from 'types/socket';
-import { RoomMessage, RoomType, RoomInfo, RoomIncommingMessage, WelcomeMessage, RoomJoinMessage, RoomTargetMessage, RoomCreateMessage } from 'types/room';
+import { ID } from 'types';
+import { Socket, Host, NetworkInfo } from 'types/socket';
+import { IncomingMessage, IncomingMessageType, Message, MessageType, OutgoingMessage, OutgoingMessageType } from 'types/message';
 
 export interface ServerOptions extends ws.ServerOptions {
-  setClientInfo?(socket: ISocket, request: IncomingMessage): SocketInfo;
-  setClientID?(request: IncomingMessage): ID;
+  setClientID?(request: http.IncomingMessage): ID;
   heartbeat_interval?: number;
   spam_duration?: number;
   spam_reset?: number;
   strikes?: number;
 }
 
-const reactor = new Reactor();
 export class SocketServer extends ws.WebSocketServer {
-
   private heartbeat_timer: NodeJS.Timer;
-  private roomid!: number;
 
-  public rooms!: Map<ID, Room>; 
-  public sockets!: Map<ID, ISocket>;
-
-  options!: ServerOptions;
+  public sockets!: Map<ID, Socket>;
+  public hosts!: Map<ID, Host>;
+  public options!: ServerOptions;
 
   constructor(options: ServerOptions, callback?: (() => void) | undefined) {
     super(options, callback);
-    this.rooms = new Map();
     this.sockets = new Map();
-    this.roomid = 0;
+    this.hosts = new Map();
 
-    this.on('connection', (socket: ISocket, request) => {
-      if (this.options.setClientInfo) {
-        socket.info = this.options.setClientInfo(socket, request);
-      }
+    this.on('connection', (socket: Socket, request) => {
       this.welcome(socket, request);
   
       socket.onmessage = this.onclientmessage();
@@ -53,17 +40,10 @@ export class SocketServer extends ws.WebSocketServer {
       this.printerror(err.message);
     });
 
-    // register the events
-    reactor.register(ReactorEvents.Send);
-    reactor.register(ReactorEvents.RoomRemove);
-
-    // add event listeners
-    reactor.addEventListener(ReactorEvents.Send, this.send.bind(this));
-    reactor.addEventListener(ReactorEvents.RoomRemove, this.removeroom.bind(this));
-
     // heartbeat
     this.heartbeat_timer = setInterval(() => {
-      this.sockets.forEach(socket => {
+      this.clients.forEach(wssocket => {
+        const socket = wssocket as Socket;
         if (!socket.is_alive) {
           socket.close();
         }
@@ -75,35 +55,9 @@ export class SocketServer extends ws.WebSocketServer {
     }, this.options.heartbeat_interval || 2000);
   }
 
-  private send(event: SendEvent): void {
-    const message = JSON.stringify(event.message);
-
-    for (const id of event.sockets) {
-      const socket = this.sockets.get(id);
-      if (socket) {
-        if (event.message.type === RoomType.Welcome) socket.rooms.push(event.message.room);
-        if (event.message.type === RoomType.Leave) socket.rooms = socket.rooms.filter(id => id !== event.message.room);
-        socket.send(message);
-      }
-    }
-  }
-  private removeroom(id:ID) {
-    const room = this.rooms.get(id);
-    if (room) {
-      // should never happen (as a room is only removed when empty but..)
-      const sids = room.clientids;
-      for (const sid of sids) {
-        const socket = this.sockets.get(sid);
-        if (socket) {
-          socket.rooms = socket.rooms.filter(room => room !== id);
-        }
-      }
-      this.rooms.delete(id);
-    }
-  }
   private onclientmessage() {
     const wss = this;
-    return function (this: ISocket, event: ws.MessageEvent) {
+    return function (this: Socket, event: ws.MessageEvent) {
       if (wss.spamcheck(this)) {
         wss.printerror(`socket ${this.id} is spamming server`);
         this.close();
@@ -111,156 +65,56 @@ export class SocketServer extends ws.WebSocketServer {
       }
     
       try {
-        const message = JSON.parse(event.data as string) as SocketMessage;
-        switch (message.category) {
-          case MessageCategory.Room: {
-            wss.roomIncommingMessage(this, message as RoomMessage);
+        const message = JSON.parse(event.data as string) as Message;
+        switch (message.type) {
+          case MessageType.Target: {
+            wss.send(this, message)
             break;
-          }
-          case MessageCategory.Socket: {
-            wss.socketIncommingMessage(this, message as SocketMessage);
-            break;
-          }
-          default: {
-            wss.send({
-              sockets: [this.id],
-              message: {
-                category: MessageCategory.Socket,
-                type: MessageType.Error,
-                error: `incoming message with wrong category ${message.category}`
-              }
-            });
           }
         }
       }
       catch (error) {
         // NOTE this most likely failed at parse level
-        wss.send({
-          sockets: [this.id],
-          message: {
-            category: MessageCategory.Socket,
-            type: MessageType.Error,
-            error: `unsupported message`
-          }
-        });
+        wss.send(this, {
+          type: OutgoingMessageType.Error,
+          error: 'unsupported message got'
+        } as OutgoingMessage);
       }
     }
   }
   private onclientclose() {
     const wss = this;
-    return function(this: ISocket) {
-      for (const id of this.rooms) {
-        const room = wss.rooms.get(id);
-    
-        if (room) {
-          room.leave(this.id);
-        }
-      }
-    
+    return function(this: Socket) {
       wss.sockets.delete(this.id);
-    }
-  }
-  private roomIncommingMessage(socket: ISocket, message: RoomMessage) {
-    if (message.type === RoomType.Create) {
-      const { config } = message as RoomCreateMessage;
-      this.roomid++;
-      const room = new Room(socket, { ...config, id: this.roomid.toString() });
-      this.rooms.set(room.id, room);
-      return;
-    }
-  
-    const { room:roomid } = message as RoomIncommingMessage;
-    const room = this.rooms.get(roomid);
-    if (!room) {
-      this.send({
-        sockets: [socket.id],
-        message: { category: MessageCategory.Room, type: RoomType.NotFound } as RoomMessage
-      });
-  
-      return;
-    }
-  
-    switch (message.type) {
-      case RoomType.Join: {
-        const { password } = message as RoomJoinMessage;
-        room.join(socket, password);
-        break;
-      }
-      case RoomType.Leave: {
-        room.leave(socket.id);
-        break;
-      }
-      case RoomType.Kick: {
-        const { socket:target } = message as RoomTargetMessage;
-        room.kick(socket.id, target);
-        break;
-      }
-      case RoomType.Ban: {
-        const { socket:target } = message as RoomTargetMessage;
-        room.ban(socket.id, target);
-        break;
-      }
-      case RoomType.Unban: {
-        const { socket:target } = message as RoomTargetMessage;
-        room.unban(socket.id, target);
-        break;
-      }
-      default: {
-        this.send({
-          sockets: [socket.id],
-          message: {
-            category: MessageCategory.Socket,
-            type: MessageType.Error,
-            error: `room incoming message of unknown type ${message.type}`
-          }
-        })
+
+      if (wss.hosts.has(this.id)) {
+        wss.hosts.delete(this.id);
+
+        wss.broadcast({
+          type: OutgoingMessageType.Deleted,
+          network: this.id,
+        } as OutgoingMessage);
       }
     }
   }
-  private socketIncommingMessage(socket: ISocket, message: SocketMessage) {
-    switch (message.type) {
-      case MessageType.Target: {
-        const { socket:socketid } = message as TargetMessage;
-        this.send({
-          sockets: [socketid],
-          message,
-        });
-        break;
-      }
-      default: {
-        this.send({
-          sockets: [socket.id],
-          message: {
-            category: MessageCategory.Socket,
-            type: MessageType.Error,
-            error: `incoming socket-message with wrong type ${message.type}`
-          }
-        });
-      }
-    }
-  }
-  private welcome(socket: ISocket, request: IncomingMessage) {
-    const roomsinfo: RoomInfo[] = [];
-    this.rooms.forEach(room => roomsinfo.push(room.info));
+
+  private welcome(socket: Socket, request: http.IncomingMessage) {
+    const networks: NetworkInfo[] = [];
+    this.hosts.forEach(host => networks.push(host.network));
     
     socket.is_alive = true;
-    socket.rooms = [];
     socket.id = this.getID(request); 
     socket.strike = 0;
     // NOTE duplicate id will be replaced
 
     this.sockets.set(socket.id, socket);
     // send all available rooms
-    this.send({
-      sockets: [socket.id],
-      message: {
-        category: MessageCategory.Socket,
-        type: MessageType.Welcome,
-        rooms: roomsinfo
-      } as WelcomeMessage,
-    });
+    this.send(socket, {
+      type: OutgoingMessageType.Welcome,
+      networks,
+    } as OutgoingMessage);
   }
-  private spamcheck(socket: ISocket):boolean {
+  private spamcheck(socket: Socket):boolean {
     const maxstrikes = (this.options.strikes || 5);
     if (socket.lastmessage) {
       const duration = performance.now() - socket.lastmessage;
@@ -283,24 +137,31 @@ export class SocketServer extends ws.WebSocketServer {
       error,
     );
   }
-  private getID(req: IncomingMessage): ID {
+  private getID(req: http.IncomingMessage): ID {
     if (this.options.setClientID) 
       return this.options.setClientID(req);
 
     return `${req.headers['user-agent']} ${req.socket.remoteAddress}`;
   }
 
-  // override functions 
-  close() {
-    reactor.removeEventListener(ReactorEvents.Send, this.send);
-    reactor.removeEventListener(ReactorEvents.RoomRemove, this.removeroom);
-
+  public send(target: Socket, message: OutgoingMessage): void {
+    const strmessage = JSON.stringify(message);
+    target.send(strmessage);
+  }
+  public broadcast(message: OutgoingMessage): void {
+    const strmessage = JSON.stringify(message);
+    this.sockets.forEach(socket => {
+      // we dont need to send update to host clients
+      if (!this.hosts.has(socket.id)) {
+        socket.send(strmessage)
+      }
+    });
+  }
+  public close() {
     for (const socket of this.clients) {
       socket.terminate();
     }
-
     super.close();
-  
     clearInterval(this.heartbeat_timer);
   }
 }
