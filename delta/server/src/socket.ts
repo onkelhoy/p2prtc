@@ -3,8 +3,17 @@ import http from 'http';
 
 // import types
 import { ID } from 'types';
-import { Socket, Host, NetworkInfo } from 'types/socket';
-import { IncomingMessage, IncomingMessageType, Message, MessageType, OutgoingMessage, OutgoingMessageType } from 'types/message';
+import { Socket, NetworkInfo } from 'types/socket';
+import { 
+  IncomingMessage, 
+  IncomingMessageType,
+  Message,
+  MessageType, 
+  NetworkMessage, 
+  OutgoingMessage, 
+  OutgoingMessageType, 
+  TargetMessage 
+} from 'types/message';
 
 export interface ServerOptions extends ws.ServerOptions {
   setClientID?(request: http.IncomingMessage): ID;
@@ -18,7 +27,7 @@ export class SocketServer extends ws.WebSocketServer {
   private heartbeat_timer: NodeJS.Timer;
 
   public sockets!: Map<ID, Socket>;
-  public hosts!: Map<ID, Host>;
+  public hosts!: Map<ID, NetworkInfo>;
   public options!: ServerOptions;
 
   constructor(options: ServerOptions, callback?: (() => void) | undefined) {
@@ -65,11 +74,57 @@ export class SocketServer extends ws.WebSocketServer {
       }
     
       try {
-        const message = JSON.parse(event.data as string) as Message;
+        const message = JSON.parse(event.data as string) as IncomingMessage;
         switch (message.type) {
           case MessageType.Target: {
-            wss.send(this, message)
+            const { target:targetid } = message as TargetMessage;
+            const target = wss.sockets.get(targetid);
+
+            if (target) {
+              wss.send(target, message as OutgoingMessage);
+            }
+            else {
+              wss.send(this, {
+                type: OutgoingMessageType.Error,
+                error: 'Target not found',
+              } as OutgoingMessage);
+            }
             break;
+          }
+          case MessageType.Update: {
+            if (wss.hosts.has(this.id)) {
+              const { network } = message as NetworkMessage;
+              wss.hosts.set(this.id, network);
+              wss.broadcast(message as NetworkMessage);
+            }
+            else {
+              wss.send(this, {
+                type: OutgoingMessageType.Error,
+                error: 'Target not found',
+              } as OutgoingMessage);
+            }
+            break;
+          }
+          case IncomingMessageType.Register: {
+            if (!wss.hosts.has(this.id)) {
+              const { network } = message as NetworkMessage;
+
+              wss.hosts.set(this.id, { ...network, id: this.id });
+              wss.send(this, message as Message);
+            }
+            else {
+              wss.send(this, {
+                type: OutgoingMessageType.Error,
+                error: 'Host already exists',
+              } as OutgoingMessage);
+            }
+            break;
+          }
+          default: {
+            wss.send(this, {
+              type: OutgoingMessageType.Error,
+              error: `unsupported message::${message.type}`
+            } as OutgoingMessage);
           }
         }
       }
@@ -77,7 +132,7 @@ export class SocketServer extends ws.WebSocketServer {
         // NOTE this most likely failed at parse level
         wss.send(this, {
           type: OutgoingMessageType.Error,
-          error: 'unsupported message got'
+          error: 'something went wrong'
         } as OutgoingMessage);
       }
     }
@@ -97,10 +152,9 @@ export class SocketServer extends ws.WebSocketServer {
       }
     }
   }
-
   private welcome(socket: Socket, request: http.IncomingMessage) {
     const networks: NetworkInfo[] = [];
-    this.hosts.forEach(host => networks.push(host.network));
+    this.hosts.forEach(network => networks.push(network));
     
     socket.is_alive = true;
     socket.id = this.getID(request); 
@@ -148,12 +202,19 @@ export class SocketServer extends ws.WebSocketServer {
     const strmessage = JSON.stringify(message);
     target.send(strmessage);
   }
-  public broadcast(message: OutgoingMessage): void {
+  public broadcast(message: OutgoingMessage|NetworkMessage): void {
     const strmessage = JSON.stringify(message);
     this.sockets.forEach(socket => {
       // we dont need to send update to host clients
       if (!this.hosts.has(socket.id)) {
-        socket.send(strmessage)
+        socket.send(strmessage);
+      }
+      else {
+        // unless its a network update (as a confirmation)
+        const { network } = message as NetworkMessage;
+        if (network && network.id === socket.id) {
+          socket.send(strmessage); //
+        }
       }
     });
   }

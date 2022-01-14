@@ -1,4 +1,5 @@
 import { ID } from '.';
+import { NetworkInfo } from './socket';
 
 export enum MessageType {
   Target = "target",
@@ -7,6 +8,13 @@ export enum MessageType {
 export interface Message extends Object {
   type: any;
 }
+export interface NetworkMessage extends Message {
+  network: NetworkInfo;
+}
+export interface TargetMessage extends Message {
+  type: MessageType.Target;
+  target: ID;
+}
 
 // outgoing messages 
 export enum OutgoingMessageType {
@@ -14,17 +22,14 @@ export enum OutgoingMessageType {
   Deleted = "delete",
   Error = "error",
 }
-
 export interface OutgoingMessage extends Message {
-  type: OutgoingMessageType;
+  type: OutgoingMessageType|MessageType;
 }
 
 // incomming messages
 export enum IncomingMessageType {
   Register = "register",
 }
-
 export interface IncomingMessage extends Message {
-  type: IncomingMessageType;
+  type: IncomingMessageType|MessageType;
 }
-

@@ -11,7 +11,3 @@ export interface Socket extends WebSocket {
 export interface NetworkInfo extends Object {
   id: ID;
 }
-
-export interface Host extends Socket {
-  network: NetworkInfo;
-}
