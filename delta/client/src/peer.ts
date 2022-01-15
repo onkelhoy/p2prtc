@@ -7,6 +7,8 @@ import { printerror, trycatch, tryuntil } from "utils/helper";
 
 const reactor = new Reactor();
 
+// NOTE good page for stun servers: 
+// https://ourcodeworld.com/articles/read/1536/list-of-free-functional-public-stun-servers-2021
 // TODO add propper documentation
 export class Peer {
   private id: ID;
