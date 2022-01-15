@@ -91,10 +91,16 @@ export class SocketServer extends ws.WebSocketServer {
             }
             break;
           }
-          case MessageType.Update: {
+          case IncomingMessageType.Update: {
             if (wss.hosts.has(this.id)) {
               const { network } = message as NetworkMessage;
               wss.hosts.set(this.id, network);
+
+              // NOTE this is just extra
+              wss.send(this, {
+                type: OutgoingMessageType.UpdateACK,
+                network: wss.hosts.get(this.id),
+              } as OutgoingMessage);
             }
             else {
               wss.send(this, {
@@ -107,9 +113,13 @@ export class SocketServer extends ws.WebSocketServer {
           case IncomingMessageType.Register: {
             if (!wss.hosts.has(this.id)) {
               const { network } = message as NetworkMessage;
-
               wss.hosts.set(this.id, { ...network, id: this.id });
-              wss.send(this, message as Message);
+
+              // NOTE this is just extra
+              wss.send(this, {
+                type: OutgoingMessageType.RegisterACK,
+                network: wss.hosts.get(this.id),
+              } as OutgoingMessage);
             }
             else {
               wss.send(this, {

@@ -3,7 +3,6 @@ import { NetworkInfo } from './socket';
 
 export enum MessageType {
   Target = "target",
-  Update = "update",
 }
 export interface Message extends Object {
   type: any;
@@ -15,9 +14,9 @@ export interface TargetMessage extends Message {
 
 // outgoing messages 
 export enum OutgoingMessageType {
-  Welcome = "welcome",
-  Deleted = "delete",
   Error = "error",
+  RegisterACK = "register-ack",
+  UpdateACK = "update-ack",
 }
 export interface OutgoingMessage extends Message {
   type: OutgoingMessageType|MessageType;
@@ -26,6 +25,7 @@ export interface OutgoingMessage extends Message {
 // incomming messages
 export enum IncomingMessageType {
   Register = "register",
+  Update = "update",
 }
 export interface IncomingMessage extends Message {
   type: IncomingMessageType|MessageType;
