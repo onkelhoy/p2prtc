@@ -9,7 +9,7 @@
     "prebuild": "rm -f -r out",
     "build": "tsc --project tsconfig.prod.json",
     "prestart": "npm run build",
-    "start": "node ."
+    "start": "NODE_PATH=out/ node ."
   },
   "keywords": [
     "signaling",

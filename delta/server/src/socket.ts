@@ -95,7 +95,6 @@ export class SocketServer extends ws.WebSocketServer {
             if (wss.hosts.has(this.id)) {
               const { network } = message as NetworkMessage;
               wss.hosts.set(this.id, network);
-              wss.broadcast(message as NetworkMessage);
             }
             else {
               wss.send(this, {
@@ -144,29 +143,16 @@ export class SocketServer extends ws.WebSocketServer {
 
       if (wss.hosts.has(this.id)) {
         wss.hosts.delete(this.id);
-
-        wss.broadcast({
-          type: OutgoingMessageType.Deleted,
-          network: this.id,
-        } as OutgoingMessage);
       }
     }
   }
   private welcome(socket: Socket, request: http.IncomingMessage) {
-    const networks: NetworkInfo[] = [];
-    this.hosts.forEach(network => networks.push(network));
-    
     socket.is_alive = true;
     socket.id = this.getID(request); 
     socket.strike = 0;
     // NOTE duplicate id will be replaced
 
     this.sockets.set(socket.id, socket);
-    // send all available rooms
-    this.send(socket, {
-      type: OutgoingMessageType.Welcome,
-      networks,
-    } as OutgoingMessage);
   }
   private spamcheck(socket: Socket):boolean {
     const maxstrikes = (this.options.strikes || 5);
@@ -202,19 +188,12 @@ export class SocketServer extends ws.WebSocketServer {
     const strmessage = JSON.stringify(message);
     target.send(strmessage);
   }
-  public broadcast(message: OutgoingMessage|NetworkMessage): void {
+  public broadcast(message: OutgoingMessage): void {
     const strmessage = JSON.stringify(message);
     this.sockets.forEach(socket => {
       // we dont need to send update to host clients
       if (!this.hosts.has(socket.id)) {
         socket.send(strmessage);
-      }
-      else {
-        // unless its a network update (as a confirmation)
-        const { network } = message as NetworkMessage;
-        if (network && network.id === socket.id) {
-          socket.send(strmessage); //
-        }
       }
     });
   }

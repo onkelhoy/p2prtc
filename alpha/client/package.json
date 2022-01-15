@@ -5,7 +5,7 @@
   "main": "build/index.js",
   "scripts": {
     "test": "mocha",
-    "start": "node .",
+    "start": "NODE_PATH=out/ node .",
     "watch": "tsc -w",
     "prestart": "npm run build",
     "build": "tsc"

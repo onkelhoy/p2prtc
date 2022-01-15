@@ -8,9 +8,6 @@ export enum MessageType {
 export interface Message extends Object {
   type: any;
 }
-export interface NetworkMessage extends Message {
-  network: NetworkInfo;
-}
 export interface TargetMessage extends Message {
   type: MessageType.Target;
   target: ID;
@@ -32,4 +29,7 @@ export enum IncomingMessageType {
 }
 export interface IncomingMessage extends Message {
   type: IncomingMessageType|MessageType;
+}
+export interface NetworkMessage extends IncomingMessage {
+  network: NetworkInfo;
 }
