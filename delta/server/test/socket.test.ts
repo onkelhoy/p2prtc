@@ -157,6 +157,44 @@ describe('Core Functionalities', () => {
   });
 });
 
+describe('Checking responses', () => {
+  beforeAll(() => {
+    socketserver = new SocketServer({ 
+      server: httpserver,
+      setClientID: () => {
+        idticker++;
+        return idticker.toString();
+      }
+    });
+  });
+  
+  afterAll(async () => {
+    idticker = 0;
+    socketserver.close();
+    await wait();
+  });
+
+  it("newly connected sockets should receive their id", async () => {
+
+  });
+
+  it("successful register should be recognized by register-ack", async () => {
+
+  });
+
+  it("successful update of network should be recognized by update-ack", async () => {
+
+  });
+
+  it("unsuccessful register should get error", async () => {
+
+  });
+
+  it("unsuccessful update of network should get error", async () => {
+
+  });
+})
+
 
 // helper functions 
 

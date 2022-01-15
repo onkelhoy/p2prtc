@@ -1,4 +1,5 @@
 export type ID = string;
+export type PrintErrorFunction = (type: string, ...args: any[]) => void;
 
 export enum Events {
   NewPeer = "peer-new",

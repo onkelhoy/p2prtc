@@ -201,6 +201,7 @@ export class SocketServer extends ws.WebSocketServer {
     const strmessage = JSON.stringify(message);
     target.send(strmessage);
   }
+  // NOTE this is mailt for testing purposes
   public broadcast(message: OutgoingMessage): void {
     const strmessage = JSON.stringify(message);
     this.sockets.forEach(socket => {
