@@ -5,6 +5,7 @@ export enum Events {
   Target = "target",
   SocketUpdateACK = "network-update-ack",
   SocketRegisterACK = "network-register-ack",
+  SocketConnectionACK = "socket-connection-ack",
 }
 
 export interface ControllerConfig {
@@ -12,4 +13,5 @@ export interface ControllerConfig {
     url: string | URL;
     protocols?: string | string[];
   };
+  rtcConfiguration?: RTCConfiguration;
 }

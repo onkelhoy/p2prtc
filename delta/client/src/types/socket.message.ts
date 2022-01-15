@@ -18,6 +18,7 @@ export interface TargetMessage extends Message {
   type: MessageType.Target;
   targetType: TargetType;
   target: ID;
+  sender: ID;
 }
 
 // outgoing messages 
@@ -32,6 +33,9 @@ export interface IncomingMessage extends Message {
 }
 export interface NetworkMessage extends IncomingMessage {
   network: NetworkInfo;
+}
+export interface WelcomeMessage extends IncomingMessage {
+  id: ID;
 }
 
 // incomming messages

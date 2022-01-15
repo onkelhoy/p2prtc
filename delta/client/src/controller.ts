@@ -1,26 +1,43 @@
 import { MediaType } from "types/peer";
-import { Reactor } from 'reactor';
 import { ControllerConfig, Events, ID } from "types";
-import { NetworkInfo } from "types/socket";
 import { 
-  IncomingMessageType as SocketIncomingMessageType, 
-  MessageType as SocketMessageType, 
+  IncomingMessage,
+  MessageType,
   NetworkMessage as SocketNetworkMessage,
-  TargetMessage as SocketTargetMessage,
+  TargetMessage,
   TargetType as SocketTargetType,
+  TargetType,
+  WelcomeMessage,
 } from "types/socket.message";
+import { SignalMessage, SignalType } from "types/peer.message";
+
+import { Reactor } from 'reactor';
 import { Socket } from "socket";
+import { Network } from "network";
+import { printerror } from "utils/helper";
 
 const reactor = new Reactor();
+const defaultRTCConfiguration:RTCConfiguration = {
+  iceServers: [
+    {urls: ["stun:stun1.l.google.com:19302?transport=udp", "iphone-stun.strato-iphone.de:3478?transport=udp"]}
+  ],
+}
 
-class Controller {
+export class Controller {
   private mystreams: Map<string, MediaStream>;
   private socket: Socket;
+  private config: ControllerConfig;
   private id?: ID;
-  public network?: NetworkInfo;
+  private printerror = printerror("controller");
+  public network?: Network;
 
   constructor(config: ControllerConfig) {
+    this.config = config;
     this.mystreams = new Map();
+
+    if (!this.config.rtcConfiguration) {
+      this.config.rtcConfiguration = defaultRTCConfiguration;
+    }
 
     this.eventsetup();
     // after event setup
@@ -35,13 +52,10 @@ class Controller {
     // add all events 
     const updateNetwork = this.updateNetwork.bind(this);
     reactor.addEventListener(Events.NewPeer, this.addPeer.bind(this));
-    reactor.addEventListener(Events.SocketTarget, this.socketTarget.bind(this));
+    reactor.addEventListener(Events.Target, this.targetMessage.bind(this));
     reactor.addEventListener(Events.SocketRegisterACK, updateNetwork);
     reactor.addEventListener(Events.SocketUpdateACK, updateNetwork);
-  }
-
-  private printerror(...errors: any[]) {
-    console.error('Client error -', ...errors);
+    reactor.addEventListener(Events.SocketConnectionACK, this.connected.bind(this));
   }
 
   public async addMedia(type: MediaType, config?: MediaStreamConstraints|DisplayMediaStreamConstraints) {
@@ -62,14 +76,14 @@ class Controller {
           break;
         }
         default: 
-          this.printerror(`Unsupported media::${type}`);
+          this.printerror('unsupported-media', type);
           return;
       }
 
       if (stream) this.mystreams.set(type, stream);
     }
     catch (error) {
-      this.printerror(`Most likly media rejected`, error);
+      this.printerror('media-rejected', error);
     }
   }
 
@@ -78,28 +92,57 @@ class Controller {
     console.log('adding a new peer');
   }
   private updateNetwork(message: SocketNetworkMessage) {
-    this.network = message.network;
+    if (this.network) {
+      this.network.update(message.network);
+      // TODO convay this to the rest
+    }
+    else {
+      this.printerror("network-update", "no network found", message.network);
+    } 
   }
-  private socketTarget (message: SocketTargetMessage) {
+  private targetMessage (message: TargetMessage) {
     if (message.target !== this.id) {
       // forward to someone else (or target : based on Topology)
+      if (this.network) {
+        const target = this.network.forward(message.target);
+        // TODO 
+      }
+      else {
+        this.printerror("forward-message", "no network", message.target);
+      }
+
+      return;
     }
     switch (message.targetType) {
       case SocketTargetType.Join: {
         // we got a request from another socket that they want to join our network
         if (this.network) {
-          
+          if (!this.network.accept(message.target)) {
+            this.socket.send({
+              type: MessageType.Target,
+              targetType: TargetType.Reject,
+              target: message.sender,
+              sender: this.id,
+            } as TargetMessage)
+          }
         }
         else {
-
+          this.printerror("network-join", "no network", message.target);
         }
       }
       case SocketTargetType.Reject: {
-
+        this.printerror("join-request", "got rejected");
       }
       case SocketTargetType.Signal: {
-
+        const { signal } = message as SignalMessage;
+        if (signal === SignalType.offer) {
+          // create a new peer
+        }
       }
     }
+  }
+  private connected (message: WelcomeMessage) {
+    const { id } = message;
+    this.id = id;
   }
 }
