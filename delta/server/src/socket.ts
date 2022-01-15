@@ -161,8 +161,15 @@ export class SocketServer extends ws.WebSocketServer {
     socket.id = this.getID(request); 
     socket.strike = 0;
     // NOTE duplicate id will be replaced
+    const networks: NetworkInfo[] = [];
+    this.hosts.forEach(info => networks.push(info));
 
     this.sockets.set(socket.id, socket);
+    this.send(socket, {
+      type: OutgoingMessageType.ConnectionACK,
+      id: socket.id,
+      networks,
+    } as OutgoingMessage);
   }
   private spamcheck(socket: Socket):boolean {
     const maxstrikes = (this.options.strikes || 5);

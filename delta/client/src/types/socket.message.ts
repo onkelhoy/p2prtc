@@ -1,5 +1,5 @@
 import { ID } from '.';
-import { NetworkInfo } from './socket';
+import { NetworkInfo } from './network';
 
 export enum MessageType {
   Target = "target",
@@ -23,8 +23,9 @@ export interface TargetMessage extends Message {
 // outgoing messages 
 export enum IncomingMessageType {
   Error = "error",
-  RegisterACK = "register-ack",
-  UpdateACK = "update-ack",
+  ConnectionACK = "socket-connection-ack",
+  RegisterACK = "network-register-ack",
+  UpdateACK = "network-update-ack",
 }
 export interface IncomingMessage extends Message {
   type: IncomingMessageType|MessageType;
@@ -35,8 +36,8 @@ export interface NetworkMessage extends IncomingMessage {
 
 // incomming messages
 export enum OutgoingMessageType {
-  Register = "register",
-  Update = "update",
+  Register = "network-register",
+  Update = "network-update",
 }
 export interface OutgoingMessage extends Message {
   type: OutgoingMessageType|MessageType;

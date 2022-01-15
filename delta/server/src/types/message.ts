@@ -15,8 +15,9 @@ export interface TargetMessage extends Message {
 // outgoing messages 
 export enum OutgoingMessageType {
   Error = "error",
-  RegisterACK = "register-ack",
-  UpdateACK = "update-ack",
+  ConnectionACK = "socket-connection-ack",
+  RegisterACK = "network-register-ack",
+  UpdateACK = "network-update-ack",
 }
 export interface OutgoingMessage extends Message {
   type: OutgoingMessageType|MessageType;
@@ -24,8 +25,8 @@ export interface OutgoingMessage extends Message {
 
 // incomming messages
 export enum IncomingMessageType {
-  Register = "register",
-  Update = "update",
+  Register = "network-register",
+  Update = "network-update",
 }
 export interface IncomingMessage extends Message {
   type: IncomingMessageType|MessageType;

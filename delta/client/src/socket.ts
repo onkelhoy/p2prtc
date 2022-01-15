@@ -1,6 +1,5 @@
 import { IncomingMessageType, MessageType, Message, NetworkMessage, OutgoingMessage } from 'types/socket.message';
 import { Reactor } from 'reactor';
-import { NetworkInfo } from 'types/socket';
 
 const MAX_ATTEMPTS = 10;
 const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
@@ -13,35 +12,21 @@ export class Socket {
   private protocols?: string | string[];
   private url: string | URL;
 
-  private network?: NetworkInfo;
-
   constructor(url: string | URL, protocols?: string | string[]) {
     this.attempts = 0;
     this.offline = [];
     this.protocols = protocols;
     this.url = url;
 
-    this.init();
+    this.setup();
   }
 
   get OfflineCount () { return this.offline.length; }
   get Status () { return this.ws.readyState; }
 
-  private init() {
-    const disclude:string[] = [IncomingMessageType.Error]
-    for (const type in IncomingMessageType) {
-      if (disclude.includes(type)) continue;
-      reactor.register(`socket-${type}`);
-    }
-    for (const type in MessageType) {
-      reactor.register(`socket-${type}`);
-    }
-
-    this.setup();
-  }
-
+  // private methods
   private setup() {
-    this.Logout(); // logs out socket if exists
+    this.close(); // logs out socket if exists
 
     this.ws = new window.WebSocket(this.url, this.protocols);
     this.ws.onmessage = this.message;
@@ -54,17 +39,13 @@ export class Socket {
       const message: Message = JSON.parse(msg.data);
 
       switch (message.type) {
-        case IncomingMessageType.UpdateACK: 
-        case IncomingMessageType.RegisterACK: {
-          this.network = (message as NetworkMessage).network;
-        }
         default: {
           // target, update-ack, register-ack
-
+          reactor.dispatch(message.type, message);
           break;
         }
         case IncomingMessageType.Error: {
-
+          // this.printerror(message.error);
           break;
         }
       }
@@ -90,24 +71,25 @@ export class Socket {
     while (this.offline.length > 0) {
       const message = this.offline.pop();
       if (message) {
-        this.Send(message); // will send the rest
+        this.send(message); // will send the rest
         return;
       }
     }
   }
 
-  Reconnect() {
+  // public methods
+  public reconnect() {
     this.attempts = 0;
     this.setup();
   }
    
-  Send(message: OutgoingMessage) {
+  public send(message: OutgoingMessage) {
     const msg = JSON.stringify(message);
     if (this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(msg);
       while (this.offline.length > 0) {
         const message = this.offline.pop();
-        if (message) this.Send(message);
+        if (message) this.send(message);
       }
       return true;
     }
@@ -116,7 +98,7 @@ export class Socket {
     return false;
   }
 
-  Logout() {
+  public close() {
     if (!this.ws) return;
 
     // remove events
@@ -124,10 +106,10 @@ export class Socket {
     this.ws.onmessage = null;
     this.ws.onopen = null;
 
-    this.Terminate();
+    this.terminate();
   }
 
-  Terminate(test?: boolean) {
+  public terminate(test?: boolean) {
     if (!this.ws) return;
     if (!test) this.attempts = MAX_ATTEMPTS;
     this.ws.close();

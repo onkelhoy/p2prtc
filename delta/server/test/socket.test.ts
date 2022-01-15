@@ -149,7 +149,7 @@ describe('Core Functionalities', () => {
     }));
     await wait();
     socket.send(JSON.stringify({
-      type: MessageType.Update,
+      type: IncomingMessageType.Update,
       network: { name: 'something-else' }
     }));
     await wait();
@@ -163,10 +163,11 @@ describe('Core Functionalities', () => {
 function getSocket() {
   const socket = new WebSocket("ws://localhost:8888");
   const messages = {
-    [OutgoingMessageType.Deleted]: 0,
     [OutgoingMessageType.Error]: 0,
+    [OutgoingMessageType.RegisterACK]: 0,
+    [OutgoingMessageType.UpdateACK]: 0,
+    [OutgoingMessageType.ConnectionACK]: 0,
     [MessageType.Target]: 0,
-    [MessageType.Update]: 0,
   };
 
   socket.onmessage = function (event: MessageEvent) {
