@@ -71,7 +71,6 @@ describe("tryuntil", () => {
 
   it("one success should quit process", async () => {
     const errors = await tryuntil("test", attempt => {
-      console.log('current attempt', attempt);
       if (attempt === 2) return 2;
 
       throw new Error("test-fail");

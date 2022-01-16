@@ -53,12 +53,11 @@ export class Controller {
   }
 
   private eventsetup() {
-    for (const type in Events) {
+    for (const type of Object.values(Events)) {
       reactor.register(type);
     }
 
     // add all events 
-    reactor.addEventListener(Events.NewPeer, this.addPeer.bind(this));
     reactor.addEventListener(Events.Target, this.targetMessage.bind(this));
     reactor.addEventListener(Events.SocketRegisterACK, this.createNetwork.bind(this));
     reactor.addEventListener(Events.SocketUpdateACK, this.updateNetwork.bind(this));

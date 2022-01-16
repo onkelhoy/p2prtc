@@ -23,8 +23,8 @@ export class Socket {
     this.setup();
   }
 
-  get OfflineCount () { return this.offline.length; }
-  get Status () { return this.ws.readyState; }
+  get offlineCount () { return this.offline.length; }
+  get status () { return this.ws.readyState; }
 
   // private methods
   private setup() {
@@ -42,7 +42,7 @@ export class Socket {
 
       switch (message.type) {
         default: {
-          // target, update-ack, register-ack
+          // target, update-ack, register-ack, connection-ack
           reactor.dispatch(message.type, message);
           break;
         }
