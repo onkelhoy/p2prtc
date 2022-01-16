@@ -6,7 +6,7 @@ export class Network {
   private router: Map<ID, RouterInfo>;
 
   constructor(info: NetworkInfo) {
-    this.info = info;
+    this.info = info; // id is the host
     this.router = new Map();
   }
 

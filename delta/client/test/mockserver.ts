@@ -1,5 +1,5 @@
 import http from 'http';
-import { SocketMessage } from 'types/socket';
+import { OutgoingMessage } from 'types/socket.message';
 
 import { SocketServer } from '../../server/src/socket';
 
@@ -18,6 +18,6 @@ export function teardown () {
   server.close();
 }
 
-export function broadcast(message: SocketMessage) {
+export function broadcast(message: OutgoingMessage) {
   wss.broadcast(message);
 }

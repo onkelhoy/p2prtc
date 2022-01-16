@@ -1,5 +1,6 @@
-import { IncomingMessageType, MessageType, Message, NetworkMessage, OutgoingMessage } from 'types/socket.message';
+import { IncomingMessageType, MessageType, Message, NetworkMessage, OutgoingMessage, ErrorMessage } from 'types/socket.message';
 import { Reactor } from 'reactor';
+import { printerror } from 'utils/helper';
 
 const MAX_ATTEMPTS = 10;
 const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
@@ -11,6 +12,7 @@ export class Socket {
   private offline: OutgoingMessage[];
   private protocols?: string | string[];
   private url: string | URL;
+  private printerror = printerror("socket");
 
   constructor(url: string | URL, protocols?: string | string[]) {
     this.attempts = 0;
@@ -45,7 +47,7 @@ export class Socket {
           break;
         }
         case IncomingMessageType.Error: {
-          // this.printerror(message.error);
+          this.printerror("message", (message as ErrorMessage).error);
           break;
         }
       }
@@ -53,7 +55,7 @@ export class Socket {
     }
   }
 
-  private error = (ev: Event) => {
+  private error = (event: Event) => {
     if (![WebSocket.OPEN, WebSocket.CONNECTING].includes(this.ws.readyState)) {
       if (this.attempts < MAX_ATTEMPTS) {
         this.attempts++;
@@ -61,9 +63,9 @@ export class Socket {
           this.setup();
         }, (Math.sign(this.attempts) + (this.attempts / MAX_ATTEMPTS)) * RECONNECT_TIME_INTERVAL_STEP)
       }
-      else console.error(`[SOCKET ERROR] connection attempt maxed out: ${this.attempts}`);
+      else this.printerror("connection", "attempts maxed out", this.attempts); 
     }
-    else console.error("[SOCKET ERROR]", ev);
+    else this.printerror("connection", event);
   }
 
   private open = () => {

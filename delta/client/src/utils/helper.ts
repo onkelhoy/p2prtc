@@ -27,3 +27,7 @@ export function tryuntil(type: string, func:Function, tries: number, printerror:
     }
   }, duration);
 }
+
+export async function wait (x:number = 100): Promise<void> {
+  return await new Promise((r) => setTimeout(r, x));
+}

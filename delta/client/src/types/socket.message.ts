@@ -37,6 +37,9 @@ export interface NetworkMessage extends IncomingMessage {
 export interface WelcomeMessage extends IncomingMessage {
   id: ID;
 }
+export interface ErrorMessage extends IncomingMessage {
+  error: string;
+}
 
 // incomming messages
 export enum OutgoingMessageType {

@@ -2,8 +2,11 @@ import { MediaType } from "types/peer";
 import { ControllerConfig, Events, ID } from "types";
 import { 
   IncomingMessage,
+  Message,
   MessageType,
+  NetworkMessage,
   NetworkMessage as SocketNetworkMessage,
+  OutgoingMessageType,
   TargetMessage,
   TargetType as SocketTargetType,
   TargetType,
@@ -15,6 +18,8 @@ import { Reactor } from 'reactor';
 import { Socket } from "socket";
 import { Network } from "network";
 import { printerror } from "utils/helper";
+import { NetworkInfo } from "types/network";
+import { Peer } from "peer";
 
 const reactor = new Reactor();
 const defaultRTCConfiguration:RTCConfiguration = {
@@ -29,11 +34,14 @@ export class Controller {
   private config: ControllerConfig;
   private id?: ID;
   private printerror = printerror("controller");
+  private peers: Set<Peer>;
+
   public network?: Network;
 
   constructor(config: ControllerConfig) {
     this.config = config;
     this.mystreams = new Map();
+    this.peers = new Set();
 
     if (!this.config.rtcConfiguration) {
       this.config.rtcConfiguration = defaultRTCConfiguration;
@@ -50,11 +58,10 @@ export class Controller {
     }
 
     // add all events 
-    const updateNetwork = this.updateNetwork.bind(this);
     reactor.addEventListener(Events.NewPeer, this.addPeer.bind(this));
     reactor.addEventListener(Events.Target, this.targetMessage.bind(this));
-    reactor.addEventListener(Events.SocketRegisterACK, updateNetwork);
-    reactor.addEventListener(Events.SocketUpdateACK, updateNetwork);
+    reactor.addEventListener(Events.SocketRegisterACK, this.createNetwork.bind(this));
+    reactor.addEventListener(Events.SocketUpdateACK, this.updateNetwork.bind(this));
     reactor.addEventListener(Events.SocketConnectionACK, this.connected.bind(this));
   }
 
@@ -83,29 +90,56 @@ export class Controller {
       if (stream) this.mystreams.set(type, stream);
     }
     catch (error) {
-      this.printerror('media-rejected', error);
+      this.printerror('media-gathering', error);
     }
   }
 
-  // event functions 
-  private addPeer() {
-    console.log('adding a new peer');
+  public register(network: NetworkInfo) {
+    this.socket.send({
+      type: OutgoingMessageType.Register,
+      network,
+    } as Message);
   }
-  private updateNetwork(message: SocketNetworkMessage) {
+
+  public join(network: ID, config: any) {
+
+  }
+
+  // event functions 
+  private addPeer(message: TargetMessage, offer?: RTCSessionDescriptionInit) {
+    console.log('Adding a new peer!!');
+    // this.peers.add(new Peer({
+    //   id: message.sender,
+    //   rtcConfiguration: this.config.rtcConfiguration as RTCConfiguration,
+    //   offer,
+    // }));
+  }
+  private updateNetwork (message: SocketNetworkMessage) {
     if (this.network) {
       this.network.update(message.network);
-      // TODO convay this to the rest
+
+      // TODO implement a smart flooding system
+      // if (this.network.info.id === this.id) {
+      //   // TODO convay this to the rest
+      // }
     }
     else {
       this.printerror("network-update", "no network found", message.network);
     } 
   }
+  private createNetwork (message: SocketNetworkMessage) {
+    if (this.network) {
+      this.printerror("network-crate", "already have network");
+    }
+    else {
+      this.network = new Network(message.network);
+    }
+  } 
   private targetMessage (message: TargetMessage) {
     if (message.target !== this.id) {
       // forward to someone else (or target : based on Topology)
       if (this.network) {
-        const target = this.network.forward(message.target);
-        // TODO 
+        this.network.forward(message.target);
       }
       else {
         this.printerror("forward-message", "no network", message.target);
@@ -125,6 +159,10 @@ export class Controller {
               sender: this.id,
             } as TargetMessage)
           }
+          else {
+            // we are connecting them
+            this.addPeer(message); 
+          }
         }
         else {
           this.printerror("network-join", "no network", message.target);
@@ -134,9 +172,10 @@ export class Controller {
         this.printerror("join-request", "got rejected");
       }
       case SocketTargetType.Signal: {
-        const { signal } = message as SignalMessage;
+        const { signal, data } = message as SignalMessage;
         if (signal === SignalType.offer) {
-          // create a new peer
+          // we got contacted by someone
+          this.addPeer(message, data as RTCSessionDescriptionInit);
         }
       }
     }
