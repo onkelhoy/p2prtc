@@ -28,7 +28,8 @@ afterEach(() => {
 
 describe('Socket Connection', () => {
   it('Should connect successfully', async () => {
-    
+    await wait();
+
   });
 
   it('Should reconnect on failure', async () => {
@@ -77,6 +78,3 @@ describe('Socket Send', () => {
 });
 
 // helper functions
-async function wait (x:number): Promise<void> {
-  return await new Promise((r) => setTimeout(r, x));
-}
