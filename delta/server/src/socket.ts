@@ -94,7 +94,8 @@ export class SocketServer extends ws.WebSocketServer {
           case IncomingMessageType.Update: {
             if (wss.hosts.has(this.id)) {
               const { network } = message as NetworkMessage;
-              wss.hosts.set(this.id, network);
+              const updated:NetworkInfo = { ...network, id: this.id };
+              wss.hosts.set(this.id, updated);
 
               // NOTE this is just extra
               wss.send(this, {
@@ -105,7 +106,7 @@ export class SocketServer extends ws.WebSocketServer {
             else {
               wss.send(this, {
                 type: OutgoingMessageType.Error,
-                error: 'Target not found',
+                error: 'Host not found',
               } as OutgoingMessage);
             }
             break;

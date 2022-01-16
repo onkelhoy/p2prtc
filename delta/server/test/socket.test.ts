@@ -4,7 +4,7 @@
 
 import { SocketServer } from 'socket';
 import http from 'http';
-import { IncomingMessageType, Message, MessageType, OutgoingMessageType } from 'types/message';
+import { IncomingMessage, IncomingMessageType, Message, MessageType, OutgoingMessageType } from 'types/message';
 
 // ############ SETUP #####################
 
@@ -34,24 +34,23 @@ afterAll(() => {
   console.log('Server teardown');
 });
 
+beforeEach(() => {
+  socketserver = new SocketServer({ 
+    server: httpserver,
+    setClientID: () => {
+      idticker++;
+      return idticker.toString();
+    }
+  });
+});
+
+afterEach(async () => {
+  idticker = 0;
+  socketserver.close();
+  await wait();
+});
 
 describe('Core Functionalities', () => {
-  beforeEach(() => {
-    socketserver = new SocketServer({ 
-      server: httpserver,
-      setClientID: () => {
-        idticker++;
-        return idticker.toString();
-      }
-    });
-  });
-  
-  afterEach(async () => {
-    idticker = 0;
-    socketserver.close();
-    await wait();
-  });
-
   it('Should accept connection', async () => {
     const { socket } = getSocket();
     await wait();
@@ -165,40 +164,63 @@ describe('Core Functionalities', () => {
 });
 
 describe('Checking responses', () => {
-  beforeAll(() => {
-    socketserver = new SocketServer({ 
-      server: httpserver,
-      setClientID: () => {
-        idticker++;
-        return idticker.toString();
-      }
-    });
-  });
-  
-  afterAll(async () => {
-    idticker = 0;
-    socketserver.close();
-    await wait();
-  });
-
   it("newly connected sockets should receive their id", async () => {
+    const { messages } = getSocket();
+    await wait();
 
+    expect(messages[OutgoingMessageType.ConnectionACK]).toHaveLength(1);
+    expect(messages[OutgoingMessageType.ConnectionACK][0]).toHaveProperty('id', '1');
   });
 
   it("successful register should be recognized by register-ack", async () => {
+    const { socket, messages } = getSocket();
+    await wait();
 
+    send(socket, {
+      type: IncomingMessageType.Register,
+      network: { name: 'hello' }
+    } as IncomingMessage);
+
+    await wait();
+    expect(messages[OutgoingMessageType.RegisterACK]).toHaveLength(1);
+    expect(messages[OutgoingMessageType.RegisterACK][0]).toHaveProperty("network", { name: 'hello', id: '1' });
   });
 
   it("successful update of network should be recognized by update-ack", async () => {
+    const { socket, messages } = getSocket();
+    await wait();
 
+    send(socket, {
+      type: IncomingMessageType.Register,
+      network: { name: 'hello' }
+    } as IncomingMessage);
+    await wait();
+    send(socket, {
+      type: IncomingMessageType.Update,
+      network: { name: 'hello-updated' }
+    } as IncomingMessage);
+    await wait();
+
+    expect(messages[OutgoingMessageType.UpdateACK]).toHaveLength(1);
+    expect(messages[OutgoingMessageType.UpdateACK][0]).toHaveProperty("network", { name: 'hello-updated', id: '1' });
   });
 
-  it("unsuccessful register should get error", async () => {
-
+  it.skip("unsuccessful register should get error", async () => {
+    // NOTE this is difficult to simulate as it depends on id generation
   });
 
   it("unsuccessful update of network should get error", async () => {
+    const { socket, messages } = getSocket();
+    await wait();
 
+    send(socket, {
+      type: IncomingMessageType.Update,
+      network: { name: 'hello-updated' }
+    } as IncomingMessage);
+    await wait();
+
+    expect(messages[OutgoingMessageType.Error]).toHaveLength(1);
+    expect(messages[OutgoingMessageType.Error][0]).toHaveProperty("error", 'Host not found');
   });
 })
 
@@ -208,20 +230,23 @@ describe('Checking responses', () => {
 function getSocket() {
   const socket = new WebSocket("ws://localhost:8888");
   const messages = {
-    [OutgoingMessageType.Error]: 0,
-    [OutgoingMessageType.RegisterACK]: 0,
-    [OutgoingMessageType.UpdateACK]: 0,
-    [OutgoingMessageType.ConnectionACK]: 0,
-    [MessageType.Target]: 0,
+    [OutgoingMessageType.Error]: [] as Message[],
+    [OutgoingMessageType.RegisterACK]: [] as Message[],
+    [OutgoingMessageType.UpdateACK]: [] as Message[],
+    [OutgoingMessageType.ConnectionACK]: [] as Message[],
+    [MessageType.Target]: [] as Message[],
   };
 
   socket.onmessage = function (event: MessageEvent) {
     const message: Message = JSON.parse(event.data);
-
-    messages[message.type as MessageType|OutgoingMessageType]++;
+    messages[message.type as MessageType|OutgoingMessageType].push(message);
    }
 
   return { messages, socket };
+}
+
+function send(socket: WebSocket, message: IncomingMessage) {
+  socket.send(JSON.stringify(message));
 }
 
 function wait(milliseconds: number = 100): Promise<void> {
