@@ -14,10 +14,10 @@ import {
 } from "types/socket.message";
 import { SignalMessage, SignalType } from "types/peer.message";
 
-import { Reactor } from 'reactor';
+import { Reactor } from 'utils/reactor';
 import { Socket } from "socket";
 import { Network } from "network";
-import { printerror } from "utils/helper";
+import { print } from "utils/helper";
 import { NetworkInfo } from "types/network";
 import { Peer } from "peer";
 
@@ -33,7 +33,8 @@ export class Controller {
   private socket: Socket;
   private config: ControllerConfig;
   private id?: ID;
-  private printerror = printerror("controller");
+  private printerror = print("controller", "error");
+  private log = print("controller");
   private peers: Set<Peer>;
 
   public network?: Network;
@@ -49,7 +50,11 @@ export class Controller {
 
     this.eventsetup();
     // after event setup
-    this.socket = new Socket(config.socket.url, config.socket.protocols);
+    this.socket = new Socket(
+      config.socket.url, 
+      config.socket.protocols, 
+      config.printinfo,
+    );
   }
 
   private eventsetup() {
@@ -94,10 +99,16 @@ export class Controller {
   }
 
   public register(network: NetworkInfo) {
+    if (this.config.printinfo) this.log('register', network);
     this.socket.send({
       type: OutgoingMessageType.Register,
       network,
     } as Message);
+  }
+
+  public update(network: NetworkInfo) {
+    // TODO tell server if host & connected
+    // need to tell peers, (by calling network and let it deal with this logic)
   }
 
   public join(network: ID, config: any) {
@@ -106,7 +117,7 @@ export class Controller {
 
   // event functions 
   private addPeer(message: TargetMessage, offer?: RTCSessionDescriptionInit) {
-    console.log('Adding a new peer!!');
+    if (this.config.printinfo) this.log('peer', 'adding');
     // this.peers.add(new Peer({
     //   id: message.sender,
     //   rtcConfiguration: this.config.rtcConfiguration as RTCConfiguration,
@@ -182,5 +193,6 @@ export class Controller {
   private connected (message: WelcomeMessage) {
     const { id } = message;
     this.id = id;
+    if (this.config.printinfo) this.log('welcome-id', id);
   }
 }

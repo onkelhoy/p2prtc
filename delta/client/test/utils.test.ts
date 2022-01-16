@@ -1,12 +1,12 @@
 import { 
-  printerror,
+  print as printfunction,
   trycatch,
   tryuntil, 
 
   wait, // test helper function
 } from 'utils/helper';
 
-const print = printerror("test");
+const print = printfunction("test", "error");
 let logs: string[] = [];
 
 beforeEach(() => {

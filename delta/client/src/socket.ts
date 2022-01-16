@@ -1,6 +1,6 @@
 import { IncomingMessageType, MessageType, Message, NetworkMessage, OutgoingMessage, ErrorMessage } from 'types/socket.message';
-import { Reactor } from 'reactor';
-import { printerror } from 'utils/helper';
+import { Reactor } from 'utils/reactor';
+import { print } from 'utils/helper';
 
 const MAX_ATTEMPTS = 10;
 const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
@@ -12,13 +12,16 @@ export class Socket {
   private offline: OutgoingMessage[];
   private protocols?: string | string[];
   private url: string | URL;
-  private printerror = printerror("socket");
+  private printerror = print("socket", "error");
+  private log = print("socket");
+  private printinfo: boolean = false;
 
-  constructor(url: string | URL, protocols?: string | string[]) {
+  constructor(url: string | URL, protocols?: string | string[], printinfo?: boolean) {
     this.attempts = 0;
     this.offline = [];
     this.protocols = protocols;
     this.url = url;
+    this.printinfo = !!printinfo;
 
     this.setup();
   }
@@ -34,6 +37,9 @@ export class Socket {
     this.ws.onmessage = this.message;
     this.ws.onerror = this.error;
     this.ws.onopen = this.open;
+    this.ws.onclose = () => {
+      if (this.printinfo) this.log('connection', 'closed');
+    }
   }
 
   private message = (msg:MessageEvent) => {
@@ -69,6 +75,7 @@ export class Socket {
   }
 
   private open = () => {
+    if (this.printinfo) this.log('connection', 'established');
     this.attempts = 0;
     while (this.offline.length > 0) {
       const message = this.offline.pop();

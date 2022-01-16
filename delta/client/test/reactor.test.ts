@@ -1,4 +1,4 @@
-import { Reactor } from "../src/reactor";
+import { Reactor } from "utils/reactor";
 
 const reactor = new Reactor();
 

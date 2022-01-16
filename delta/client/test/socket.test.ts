@@ -4,7 +4,7 @@
 
 import { Socket } from "socket";
 import { wait } from 'utils/helper';
-import { Reactor } from 'reactor';
+import { Reactor } from 'utils/reactor';
 
 import * as mockserver from './mockserver';
 import { Events } from "types";

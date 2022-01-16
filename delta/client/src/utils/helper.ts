@@ -1,12 +1,16 @@
-import { PrintErrorFunction } from "types";
+import { PrintFunction } from "types";
 
-export function printerror(name: string): PrintErrorFunction {
+export function print(name: string, printtype: 'error'|'log' = 'log'): PrintFunction {
   return (type: string, ...args: any[]) => {
-    console.error(`[${name.toUpperCase()} ${type}-error]`, ...args);
+    const label = `[${name.toUpperCase()} ${type}-${printtype}]`;
+    if (printtype === 'log') 
+      console.log(label, ...args);
+    else 
+      console.error(label, ...args);
   }
 }
 
-export async function trycatch(type: string, func:Function, printerror: PrintErrorFunction): Promise<null|any> {
+export async function trycatch(type: string, func:Function, printerror: PrintFunction): Promise<null|any> {
   try {
     await func();
     return null;
@@ -17,7 +21,7 @@ export async function trycatch(type: string, func:Function, printerror: PrintErr
   }
 }
 
-export function tryuntil(type: string, func:(attempt: number) => void, tries: number, printerror: PrintErrorFunction, duration = 100) :Promise<any[]> {
+export function tryuntil(type: string, func:(attempt: number) => void, tries: number, printerror: PrintFunction, duration = 100) :Promise<any[]> {
   return new Promise((resolve) => {
     let attempts = 0;
     const errors = [] as any[];

@@ -1,5 +1,5 @@
 export type ID = string;
-export type PrintErrorFunction = (type: string, ...args: any[]) => void;
+export type PrintFunction = (type: string, ...args: any[]) => void;
 
 export enum Events {
   Target = "target",
@@ -9,6 +9,7 @@ export enum Events {
 }
 
 export interface ControllerConfig {
+  printinfo?: boolean;
   socket: {
     url: string | URL;
     protocols?: string | string[];

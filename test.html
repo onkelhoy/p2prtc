@@ -5,8 +5,76 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Test environment</title>
   <script src="./delta/client/out/p2pnet.bundle.js"></script>
+  <script>
+    window.onload = async function() {
+      const list = document.querySelector('ul');
+      const input = document.querySelector('input');
+      const createbutton = document.querySelector('button#create');
+      const refreshbutton = document.querySelector('button#refresh');
+
+      const controller = window.initnet({
+        printinfo: true,
+        socket: {
+          url: 'ws://localhost:3000'
+        }
+      });
+
+      console.log(controller)
+
+      createbutton.onclick = function() {
+        if (input.value) {
+          controller.register({
+            name: input.value
+          });
+        }
+      }
+
+      refreshbutton.onclick = function() {
+        refresh();
+      }
+      refresh();
+
+      function addListItem(text) {
+        const li = document.createElement("li");
+        list.appendChild(li);
+        li.innerText = text;
+
+        return li;
+      }
+
+      function join(e) {
+        const id = e.target.getAttribute('id');
+        console.log('join', id);
+      }
+
+      async function refresh() {
+        list.innerHTML = "";
+        const res = await fetch("http://localhost:3000/network");
+        const json = await res.json();
+
+        if (json.length > 0) {
+          json.map(network => {
+            const li = addListItem(network.name);
+            li.setAttribute('id', network.id);
+            li.onclick = join;
+          })
+        }
+        else {
+          addListItem('no network'); 
+        }
+      }
+    }
+  </script>
 </head>
 <body>
-  <h1>Hello Henry</h1>
+  <h1>Network Test</h1>
+  <div>
+    <input type="text" value="my-network" placeholder="example-name" />
+    <button id="create">create network</button>
+  </div>
+
+  <h3>Networks</h3>
+  <button id="refresh">refresh</button>
+  <ul></ul>
 </body>
 </html>

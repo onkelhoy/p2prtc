@@ -1,9 +1,9 @@
-import { Reactor } from "reactor";
-import { Events, ID, PrintErrorFunction } from "types";
+import { Reactor } from "utils/reactor";
+import { Events, ID, PrintFunction } from "types";
 import { PeerConfiguration, PeerType } from "types/peer";
 import { SignalData, SignalMessage, SignalType } from "types/peer.message";
 import { MessageType, TargetType } from "types/socket.message";
-import { printerror, trycatch, tryuntil } from "utils/helper";
+import { print, trycatch, tryuntil } from "utils/helper";
 
 const reactor = new Reactor();
 
@@ -14,12 +14,12 @@ export class Peer {
   private id: ID;
   private type: PeerType;
   private connection!: RTCPeerConnection;
-  private printerror: PrintErrorFunction;
+  private printerror: PrintFunction;
   
   constructor(config: PeerConfiguration) {
     this.id = config.id;
     this.type = config.offer ? "receiving" : "calling";
-    this.printerror = printerror(`PEER#${this.id}`);
+    this.printerror = print(`PEER#${this.id}`, 'error');
 
     this.setup(config.rtcConfiguration);
 
