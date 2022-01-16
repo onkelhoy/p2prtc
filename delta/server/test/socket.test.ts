@@ -11,8 +11,15 @@ import { IncomingMessageType, Message, MessageType, OutgoingMessageType } from '
 let httpserver: http.Server;
 let socketserver: SocketServer;
 let idticker = 0;
+const logs = {
+  errors: [] as string[],
+  logs: [] as string[],
+}
 
 beforeAll(async () => {
+  console.log = (...args:any[]) => logs.logs.push(args.join(' '));
+  console.error = (...args:any[]) => logs.errors.push(args.join(' '));
+
   return new Promise<void>(rs => {
     httpserver = http.createServer();
     httpserver.listen(8888, () => {
