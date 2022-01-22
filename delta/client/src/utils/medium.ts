@@ -1,6 +1,6 @@
 import { DataChannelConfig, MediaConfig, MediaType } from "types/peer";
 import { print } from "utils/helper";
-import { Global } from 'global';
+import { Global } from 'utils/global';
 import { Reactor } from "utils/reactor";
 import { Events } from "types";
 

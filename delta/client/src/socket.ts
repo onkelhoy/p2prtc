@@ -1,7 +1,8 @@
 import { IncomingMessageType, MessageType, Message, NetworkMessage, OutgoingMessage, ErrorMessage } from 'types/socket.message';
 import { Reactor } from 'utils/reactor';
 import { print } from 'utils/helper';
-import { Global } from 'global';
+import { Global } from 'utils/global';
+import { Events } from 'types';
 
 const MAX_ATTEMPTS = 10;
 const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
@@ -49,6 +50,12 @@ export class Socket {
         default: {
           // target, update-ack, register-ack, connection-ack
           reactor.dispatch(message.type, message);
+          break;
+        }
+        case IncomingMessageType.RegisterACK: 
+          // reactor.dispatch()
+        case IncomingMessageType.UpdateACK: {
+          reactor.dispatch(Events.NetworkUpdate, message.network);
           break;
         }
         case IncomingMessageType.Error: {

@@ -1,4 +1,4 @@
-import { Global } from 'global';
+import { Global } from 'utils/global';
 import { Network } from 'network';
 import { JoinMessage } from 'types/socket.message';
 

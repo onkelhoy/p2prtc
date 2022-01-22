@@ -1,4 +1,4 @@
-import { Global } from "global";
+import { Global } from "utils/global";
 import { Events, ID, UIEvents } from "types";
 import { NetworkInfo, PartialNetworkInfo, RouterInfo } from "types/network";
 import { JoinMessage, TargetMessage } from "types/socket.message";
@@ -16,11 +16,6 @@ export class Network {
     reactor.dispatch(UIEvents.Network, info);
   }
 
-  private canjoin(id: ID): boolean {
-    if (Global.user.id === id || this.router.has(id)) return false;
-    return true;
-  }
-
   public get size() {
     return this.router.size + 1; // + myself
   }
@@ -33,7 +28,7 @@ export class Network {
     return Global.network?.id;
   }
 
-  public update(info: PartialNetworkInfo) {
+  public update (info: PartialNetworkInfo) {
     // TODO tell server if host & connected
     // need to tell peers, (by calling network and let it deal with this logic)
     Global.network = { ...info, id: Global.user.id };
@@ -41,7 +36,7 @@ export class Network {
   }
 
   public accept(message: JoinMessage):boolean {
-    if (!this.canjoin(message.sender)) return false;
+    if (Global.user.id === message.sender || this.router.has(message.sender)) return false;
 
     // TODO use the rest of info to determin if they can join etc...
 
@@ -62,7 +57,11 @@ export class Network {
       connection: [connector],
     });
 
-    reactor.dispatch(Events.ForwardMessage, message);
+    if (connector !== Global.user.id) reactor.dispatch(Events.ForwardMessage, message);
+    else {
+      // we are going to connect
+      reactor.dispatch(Events.PeerAdd, message);
+    }
   }
 
   public disconnected(peer: ID) {
@@ -87,7 +86,7 @@ export class Network {
   }
   public remove(id: ID) {
     this.router.delete(id);
-    // this should be left alone (not do what remove does) 
+    // this should be left alone (not do what disconnect does) 
     // as this could be a order from host (for topology change)
   }
   public join(id: ID) { //

@@ -8,8 +8,6 @@ export interface PeerConfiguration {
 
   streams: Map<Omit<MediaType, 'data'>, MediaStream>;
   channels: Map<string, RTCDataChannelInit | undefined>;
-
-  user?: UserInfo;
 }
 
 // media related

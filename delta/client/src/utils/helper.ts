@@ -1,4 +1,4 @@
-import { Global } from "global";
+import { Global } from "utils/global";
 import { PrintFunction } from "types";
 
 export function print(name: string, printtype: 'error'|'log' = 'log'): PrintFunction {

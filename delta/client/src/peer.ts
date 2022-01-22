@@ -1,15 +1,13 @@
 import { Reactor } from "utils/reactor";
 import { Events, ID, PrintFunction, UserInfo } from "types";
 import { DataChannelConfig, PeerConfiguration, PeerType } from "types/peer";
-import { SignalData, SignalMessage, SignalType } from "types/peer.message";
-import { MessageType, TargetMessage, TargetMessageSparse, TargetType } from "types/socket.message";
+import { SignalData, SignalMessage, SignalType, SystemInitMessage, SystemMessage, SystemType } from "types/peer.message";
+import { Message, MessageType, TargetType } from "types/socket.message";
 import { print, trycatch, tryuntil } from "utils/helper";
-import { Global } from "global";
+import { Global } from "utils/global";
 
 const reactor = new Reactor();
 
-// NOTE good page for stun servers: 
-// https://ourcodeworld.com/articles/read/1536/list-of-free-functional-public-stun-servers-2021
 // TODO add propper documentation
 export class Peer {
   public id: ID;
@@ -18,12 +16,10 @@ export class Peer {
   private log: PrintFunction;
   private printerror: PrintFunction;
   private userinfo!: UserInfo;
-
   private channels: Map<string, RTCDataChannel>;
   
   constructor(config: PeerConfiguration) {
     this.id = config.id;
-    if (config.user) this.userinfo = config.user;
     this.type = config.offer ? "receiving" : "calling";
     this.printerror = print(`PEER#${this.id}`, 'error');
     this.log = print(`PEER#${this.id}`);
@@ -60,71 +56,30 @@ export class Peer {
       this.setupChannel(e.channel);
     }
 
-    if (this.type === "calling") this.setupCallee(config);
-    else this.setupReceive(config);
+    if (this.type === "calling") {
+      // create an offer
+      this.createOffer();
+      config.channels.forEach((config, label) => {
+        this.addChannel(label, config);
+      });
+    }
+    else {
+      // create an answer
+      this.createAnswer(config.offer as RTCSessionDescriptionInit);
+    }
   }
 
-  private setupCallee(config: PeerConfiguration) {
-    // create an offer
-    this.createOffer();
-    config.channels.forEach((config, label) => {
-      this.addChannel(label, config);
-    });
-  }
-
-  private setupReceive(config: PeerConfiguration) {
-    // create an answer
-    this.createAnswer(config.offer as RTCSessionDescriptionInit);
-  }
-
+  //#region handshake
   private reveiceCandidate = (candidate: RTCIceCandidate) => {
     tryuntil("receive-answer", async () => {
       await this.connection.addIceCandidate(candidate)
     }, 3, this.printerror);
   }
-
-  private receiveAnswer = (data: {user: UserInfo, answer: RTCSessionDescriptionInit}) => {
-    this.userinfo = data.user;
+  private receiveAnswer = (answer: RTCSessionDescriptionInit) => {
     tryuntil("receive-answer", async () => {
-      await this.connection.setRemoteDescription(data.answer);
+      await this.connection.setRemoteDescription(answer);
     }, 3, this.printerror);
   }
-
-  // mendium setup 
-  private addChannel(label: string, config?: RTCDataChannelInit) {
-    if (this.channels.has(label)) {
-      if (["warning", "debug"].includes(Global.logger)) this.printerror("data-channel-add", "duplicate channel");
-    }
-
-    const channel = this.connection.createDataChannel(label, config);
-    this.setupChannel(channel);
-  }
-  
-  private setupChannel(channel: RTCDataChannel) {
-    channel.onopen = () => {
-      if (channel.label === 'system') {
-        reactor.dispatch(Events.PeerConnectionOpen, { ...(this.userinfo||{}), id: this.id });
-        if (["info", "debug"].includes(Global.logger)) this.log('connection', 'established');
-      }
-      else if (["info", "debug"].includes(Global.logger)) this.log('channel-open', channel.label);
-    }
-    if (channel.label === "system") {
-      channel.onmessage = e => {
-        reactor.dispatch(Events.Target, JSON.parse(e.data));
-      }
-    }
-    else {
-      channel.onmessage = (e) => {
-        reactor.dispatch(`${Events.PeerMessage}-${channel.label}`, { id: this.id, message: e.data })
-      }
-    }
-    channel.onerror = (e) => {
-      // do something
-    }
-
-    this.channels.set(channel.label, channel);
-  }
-
   private createOffer(first = true) {
     tryuntil("create-offer", async () => {
       let options:RTCOfferOptions | undefined  = undefined;
@@ -135,7 +90,6 @@ export class Peer {
       this.signal(SignalType.offer, offer);
     }, 3, this.printerror);
   }
-
   private createAnswer(offer: RTCSessionDescriptionInit) {
     tryuntil("create-answer", async () => {
       await this.connection.setRemoteDescription(new RTCSessionDescription(offer));
@@ -144,7 +98,9 @@ export class Peer {
       this.signal(SignalType.answer, answer);
     }, 3, this.printerror);
   }
+  //#endregion
 
+  //#region send methods
   private signal(type: SignalType, data: SignalData) {
     reactor.dispatch(Events.SendTarget, {
       signal: type,
@@ -155,7 +111,6 @@ export class Peer {
       user: Global.user,
     } as SignalMessage);
   }
-
   public onSignal(message: SignalMessage) {
     const { signal, data } = message
     switch (signal) {
@@ -176,7 +131,6 @@ export class Peer {
         if (["error", "debug"].includes(Global.logger)) this.printerror("signaling", `incorrect signaling type::${signal}`);
     }
   }
-
   public send(label: string, message:string):boolean {
     const channel = this.channels.get(label)
     if (!channel) {
@@ -187,8 +141,42 @@ export class Peer {
     channel.send(message);
     return true;
   }
+  //#endregion
 
-  public systemSend(message:TargetMessage):boolean {
+  //#region data-channel
+  private addChannel(label: string, config?: RTCDataChannelInit) {
+    if (this.channels.has(label)) {
+      if (["warning", "debug"].includes(Global.logger)) this.printerror("data-channel-add", "duplicate channel");
+    }
+
+    const channel = this.connection.createDataChannel(label, config);
+    this.setupChannel(channel);
+  }
+  private setupChannel(channel: RTCDataChannel) {
+    channel.onopen = () => {
+      if (channel.label === 'system') {
+        this.systemopen();
+      }
+      else if (["info", "debug"].includes(Global.logger)) this.log('channel-open', channel.label);
+    }
+    if (channel.label === "system") {
+      channel.onmessage = this.systemmessage;
+    }
+    else {
+      channel.onmessage = (e) => {
+        reactor.dispatch(`${Events.PeerMessage}-${channel.label}`, { id: this.id, message: e.data })
+      }
+    }
+    channel.onerror = (e) => {
+      // do something
+    }
+
+    this.channels.set(channel.label, channel);
+  }
+  //#endregion
+  
+  //#region system-data-chanel
+  public systemsend(message:Message):boolean {
     const channel = this.channels.get('system');
     if (!channel) {
       if (["fatal", "error", "warning", "debug"].includes(Global.logger)) this.printerror('system-send', 'channel not found');
@@ -198,4 +186,38 @@ export class Peer {
     channel.send(JSON.stringify(message));
     return true;
   }
+  private systemmessage = (event:MessageEvent) => {
+    const message:SystemMessage = JSON.parse(event.data);
+    switch (message.type) {
+      case SystemType.Target: {
+        reactor.dispatch(Events.Target, message);
+        break;
+      }
+      case SystemType.Init: {
+        const { user, network } = message as SystemInitMessage;
+        if (network) reactor.dispatch(Events.NetworkUpdate, network);
+        reactor.dispatch(Events.PeerConnectionOpen, user);
+        this.userinfo = user;
+        break;
+      }
+      default: {
+
+      }
+    }
+  }
+  private systemopen () {
+    // exchange info 
+    this.systemsend({
+      type: SystemType.Init,
+      user: Global.user,
+      network: Global.network,
+    } as SystemInitMessage);
+
+    if (this.type === "calling") {
+      // reactor.dispatch()
+    }
+
+    if (["info", "debug"].includes(Global.logger)) this.log('connection', 'established');
+  }
+  //#endregion
 }

@@ -14,7 +14,8 @@ export enum Events {
   NewDataChannel = 'new-data-channel',
   ForwardMessage = 'forward-message',
 
-  PeerDelete = 'peer-delete',
+  PeerAdd = 'add-peer',
+  PeerDelete = 'delete-peer',
   PeerMessage = 'peer-message',
   PeerConnectionOpen = 'peer-open',
 }
@@ -25,6 +26,8 @@ export enum UIEvents {
   PeerDelete = 'peer-delete',
 };
 
+// NOTE good page for stun servers: 
+// https://ourcodeworld.com/articles/read/1536/list-of-free-functional-public-stun-servers-2021
 export interface ControllerConfig {
   logger?: LogType;
   info?: Object;
