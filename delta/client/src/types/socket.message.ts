@@ -4,7 +4,7 @@ import { NetworkInfo } from './network';
 export enum MessageType {
   Target = "target",
 }
-export interface Message extends Object {
+export interface Message extends Record<string, any> {
   type: any;
 }
 
@@ -13,12 +13,19 @@ export enum TargetType {
   Join = "join",
   Reject = "reject",
   Signal = "signal",
+  Network = "network",
 }
-export interface TargetMessage extends Message {
-  type: MessageType.Target;
+export interface TargetMessageSparse extends Omit<Message, 'type'> {
   targetType: TargetType;
   target: ID;
+}
+export interface TargetMessage extends TargetMessageSparse {
+  type: MessageType.Target;
   sender: ID;
+}
+export interface JoinMessage extends TargetMessage {
+  targetType: TargetType.Join;
+  config?: any;
 }
 
 // outgoing messages 

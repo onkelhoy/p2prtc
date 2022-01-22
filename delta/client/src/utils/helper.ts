@@ -1,3 +1,4 @@
+import { Global } from "global";
 import { PrintFunction } from "types";
 
 export function print(name: string, printtype: 'error'|'log' = 'log'): PrintFunction {
@@ -16,7 +17,7 @@ export async function trycatch(type: string, func:Function, printerror: PrintFun
     return null;
   }
   catch (e) {
-    printerror(type, e);
+    if (["error", "warning", "debug"].includes(Global.logger)) printerror(type, e);
     return e;
   }
 }

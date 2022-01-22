@@ -63,4 +63,9 @@ export class Reactor {
       event.callbacks = event.callbacks.filter(cb => cb !== callback);
     }
   }
+
+  public on (type: string, callback: Function) {
+    if (!this.has(type)) this.register(type);
+    this.addEventListener(type, callback);
+  }
 }

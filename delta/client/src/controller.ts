@@ -1,198 +1,280 @@
-import { MediaType } from "types/peer";
-import { ControllerConfig, Events, ID } from "types";
+// types
+import { ControllerConfig, Events, ID, SparseUserInfo, UIEvents, UserInfo } from "types";
 import { 
-  IncomingMessage,
+  JoinMessage,
   Message,
   MessageType,
-  NetworkMessage,
   NetworkMessage as SocketNetworkMessage,
   OutgoingMessageType,
   TargetMessage,
-  TargetType as SocketTargetType,
+  TargetMessageSparse,
   TargetType,
   WelcomeMessage,
 } from "types/socket.message";
 import { SignalMessage, SignalType } from "types/peer.message";
+import { NetworkInfo, PartialNetworkInfo } from "types/network";
 
+// utils
+import { print } from "utils/helper";
 import { Reactor } from 'utils/reactor';
+
+// modules
 import { Socket } from "socket";
 import { Network } from "network";
-import { print } from "utils/helper";
-import { NetworkInfo } from "types/network";
 import { Peer } from "peer";
+import { Global } from "global";
+import { Medium } from "medium";
 
 const reactor = new Reactor();
-const defaultRTCConfiguration:RTCConfiguration = {
-  iceServers: [
-    {urls: ["stun:stun1.l.google.com:19302?transport=udp", "iphone-stun.strato-iphone.de:3478?transport=udp"]}
-  ],
-}
 
 export class Controller {
-  private mystreams: Map<string, MediaStream>;
   private socket: Socket;
-  private config: ControllerConfig;
-  private id?: ID;
   private printerror = print("controller", "error");
   private log = print("controller");
-  private peers: Set<Peer>;
-
+  private peers: Map<ID, Peer>;
+  private config: ControllerConfig;
+  public medium: Medium;
   public network?: Network;
 
   constructor(config: ControllerConfig) {
+    Global.logger = config.logger||'none';
+    Global.user = (config.user || {}) as UserInfo;
+    this.peers = new Map();
+    this.medium = new Medium();
     this.config = config;
-    this.mystreams = new Map();
-    this.peers = new Set();
-
-    if (!this.config.rtcConfiguration) {
-      this.config.rtcConfiguration = defaultRTCConfiguration;
-    }
 
     this.eventsetup();
     // after event setup
     this.socket = new Socket(
       config.socket.url, 
       config.socket.protocols, 
-      config.printinfo,
     );
   }
 
+  public get UserInfo () {
+    return Global.user;
+  }
+
+  public set UserInfo (info: SparseUserInfo) {
+    Global.user = { ...Global.user, ...info };
+    if (["info", "debug"].includes(Global.logger)) this.log("userinfo", Global.user);
+  }
+
   private eventsetup() {
-    for (const type of Object.values(Events)) {
-      reactor.register(type);
-    }
-
     // add all events 
-    reactor.addEventListener(Events.Target, this.targetMessage.bind(this));
-    reactor.addEventListener(Events.SocketRegisterACK, this.createNetwork.bind(this));
-    reactor.addEventListener(Events.SocketUpdateACK, this.updateNetwork.bind(this));
-    reactor.addEventListener(Events.SocketConnectionACK, this.connected.bind(this));
+    reactor.on(Events.SendTarget, this.sendTargetMessage.bind(this));
+    reactor.on(Events.Target, this.onTargetMessage.bind(this));
+    reactor.on(Events.SocketConnectionACK, this.socketwelcome.bind(this));
+    // network
+    reactor.on(Events.SocketRegisterACK, this.createNetwork.bind(this));
+    reactor.on(Events.NetworkUpdate, this.updateNetwork);
+    reactor.on(Events.SocketUpdateACK, (message:SocketNetworkMessage) => this.updateNetwork(message.network));
+    reactor.on(Events.PeerConnectionOpen, this.onPeerConnection);
+    reactor.on(Events.ForwardMessage, this.forward.bind(this));
+    // peer
+    reactor.on(Events.PeerDelete, this.removePeer);
   }
 
-  public async addMedia(type: MediaType, config?: MediaStreamConstraints|DisplayMediaStreamConstraints) {
-    try {
-      let stream: MediaStream|undefined = undefined;
-
-      switch (type) {
-        case "audio": {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          break;
-        }
-        case "video": {
-          stream = await navigator.mediaDevices.getUserMedia(config);
-          break;
-        }
-        case "screen": {
-          stream = await navigator.mediaDevices.getDisplayMedia(config)
-          break;
-        }
-        default: 
-          this.printerror('unsupported-media', type);
-          return;
-      }
-
-      if (stream) this.mystreams.set(type, stream);
-    }
-    catch (error) {
-      this.printerror('media-gathering', error);
-    }
-  }
-
-  public register(network: NetworkInfo) {
-    if (this.config.printinfo) this.log('register', network);
+  // exposed api for windows
+  public register(network: PartialNetworkInfo) {
+    if (["info", "debug"].includes(Global.logger)) this.log('register', network);
     this.socket.send({
       type: OutgoingMessageType.Register,
       network,
     } as Message);
   }
+  public join(network: ID, config?: any) {
+    this.sendTargetMessage({
+      target: network,
+      targetType: TargetType.Join, 
+      config,
+    });
+  }
+  public broadcast(channel:string, message:string) {
+    this.peers.forEach(p => p.send(channel, message));
+  }
+  public send(channel:string, target:ID, message:string):boolean {
+    const p = this.peers.get(target);
 
-  public update(network: NetworkInfo) {
-    // TODO tell server if host & connected
-    // need to tell peers, (by calling network and let it deal with this logic)
+    if (!p) {
+      if (["warning", "debug"].includes(Global.logger)) this.printerror("send", "peer not found");
+      return false;
+    }
+
+    return p.send(channel, message);
+  }
+  public onDataMessage(channel:string, callback:(data:{id:ID, message:string})=>void) {
+    reactor.on(`${Events.PeerMessage}-${channel}`, callback);
   }
 
-  public join(network: ID, config: any) {
-
+  public on(event:UIEvents, callback:Function) {
+    reactor.on(event, callback);
   }
 
   // event functions 
   private addPeer(message: TargetMessage, offer?: RTCSessionDescriptionInit) {
-    if (this.config.printinfo) this.log('peer', 'adding');
-    // this.peers.add(new Peer({
-    //   id: message.sender,
-    //   rtcConfiguration: this.config.rtcConfiguration as RTCConfiguration,
-    //   offer,
-    // }));
-  }
-  private updateNetwork (message: SocketNetworkMessage) {
-    if (this.network) {
-      this.network.update(message.network);
+    if (["info", "debug"].includes(Global.logger)) this.log('peer', 'adding');
+    if (this.config.testing?.peers === false) {
+      return;
+    }
 
-      // TODO implement a smart flooding system
-      // if (this.network.info.id === this.id) {
-      //   // TODO convay this to the rest
-      // }
+    this.peers.set(message.sender, new Peer({
+      id: message.sender,
+      rtcConfiguration: this.config.rtcConfiguration as RTCConfiguration,
+      offer,
+      streams: this.medium.streams,
+      channels: this.medium.channels,
+      user: (message as SignalMessage).user
+    }));
+  }
+  private removePeer = (peer: ID) => {
+    if (["info", "debug"].includes(Global.logger)) this.log('peer', 'removed', peer);
+    reactor.dispatch(UIEvents.PeerDelete, peer);
+    this.peers.delete(peer);
+    this.network?.disconnected(peer);
+  }
+  private onPeerConnection = (id:ID) => {
+    this.network?.join(id);
+
+    if (Global.user.id !== Global.network?.id) {
+      this.socket.close();
     }
     else {
-      this.printerror("network-update", "no network found", message.network);
+      // we are the host so send our network info to socket 
+      const p = this.peers.get(id);
+      if (p) {
+        p.systemSend({
+          type: MessageType.Target,
+          targetType: TargetType.Network,
+          sender: Global.user.id,
+          target: id,
+          network: Global.network,
+        });
+
+        // we should also make them connect to our other peers
+      }
+    }
+  }
+  private updateNetwork = (info: NetworkInfo) => {
+    if (this.network) {
+      this.network.update(info);
+    }
+    else {
+      if (["error", "warning", "debug"].includes(Global.logger)) this.printerror("network-update", "no network found", info);
     } 
   }
   private createNetwork (message: SocketNetworkMessage) {
     if (this.network) {
-      this.printerror("network-crate", "already have network");
+      if (["error", "warning", "debug"].includes(Global.logger)) this.printerror("network-crate", "already have network");
     }
     else {
       this.network = new Network(message.network);
+      this.medium.add("data", { label: "system" }); // standard data-channel
     }
-  } 
-  private targetMessage (message: TargetMessage) {
-    if (message.target !== this.id) {
+  }
+  private sendTargetMessage (sparsemessage: TargetMessageSparse) {
+
+    let message:TargetMessage;
+    
+    if (sparsemessage.type && sparsemessage.sender) {
+      // its just a forward 
+      message = sparsemessage as TargetMessage;
+    }
+    else {
+      message = { 
+        ...sparsemessage, 
+        sender: Global.user.id,
+        type: MessageType.Target,
+      };
+    }
+
+    if (["debug"].includes(Global.logger)) this.log("send-target-message", message);
+    
+    this.forward(message);
+  }
+  private forward(message: TargetMessage) {
+    if (this.network) {
+      const forward = this.network.forward(message.target);
+      if (forward !== null) {
+        const p = this.peers.get(forward);
+        if (!p) {
+          if (Global.logger !== "none") this.printerror("forward-target", "peer-not-found", forward);
+        }
+        else {
+          p.systemSend(message);
+          return;
+        }
+      } 
+    }
+    // network or forward is null : thus socket transport
+    if (this.socket.status === WebSocket.OPEN) this.socket.send(message);
+    else if (Global.logger !== "none") this.printerror("forward", "no socket connection");
+  }
+  private onTargetMessage (message: TargetMessage) {
+    if (["debug"].includes(Global.logger)) this.log("on-target-message", message);
+    if (message.target !== Global.user.id) {
       // forward to someone else (or target : based on Topology)
       if (this.network) {
-        this.network.forward(message.target);
+        this.forward(message);
       }
       else {
-        this.printerror("forward-message", "no network", message.target);
+        if (["error", "warning", "debug"].includes(Global.logger)) this.printerror("forward-message", "no network", message.target);
       }
 
       return;
     }
     switch (message.targetType) {
-      case SocketTargetType.Join: {
+      case TargetType.Join: {
         // we got a request from another socket that they want to join our network
         if (this.network) {
-          if (!this.network.accept(message.target)) {
-            this.socket.send({
-              type: MessageType.Target,
+          if (!this.network.accept(message as JoinMessage)) {
+            this.sendTargetMessage({
               targetType: TargetType.Reject,
               target: message.sender,
-              sender: this.id,
-            } as TargetMessage)
+            });
           }
           else {
-            // we are connecting them
+            // we are connecting to them (by creating an offer)
+            // TODO we should network decide who this peer should join
             this.addPeer(message); 
           }
         }
         else {
-          this.printerror("network-join", "no network", message.target);
+          if (["warning", "debug"].includes(Global.logger)) this.printerror("network-join", "no network", message.target);
         }
+        break;
       }
-      case SocketTargetType.Reject: {
-        this.printerror("join-request", "got rejected");
+      case TargetType.Reject: {
+        if (["warning", "info", "debug"].includes(Global.logger)) this.log("join-request", "we got rejected");
+        break;
       }
-      case SocketTargetType.Signal: {
-        const { signal, data } = message as SignalMessage;
+      case TargetType.Signal: {
+        const { signal, data, user } = message as SignalMessage;
         if (signal === SignalType.offer) {
           // we got contacted by someone
           this.addPeer(message, data as RTCSessionDescriptionInit);
         }
+        else {
+          reactor.dispatch(`peer-${message.sender}-${signal}`, { data, user });
+        }
+        break;
+      }
+      case TargetType.Network: { 
+        this.network = new Network(message.network);
+        // as this is comming from host (we add him to our network)
+        this.network.join(message.sender);
+        if (["info", "debug"].includes(Global.logger)) this.log("network-set", message.network);
+        break;
+      }
+      default: {
+        if (["warning", "debug"].includes(Global.logger))  this.printerror("target-message", "unsupported type", message.targetType);
+        break;
       }
     }
   }
-  private connected (message: WelcomeMessage) {
+  private socketwelcome (message: WelcomeMessage) {
     const { id } = message;
-    this.id = id;
-    if (this.config.printinfo) this.log('welcome-id', id);
+    Global.user = { ...Global.user, id };
+    if (["info", "debug"].includes(Global.logger)) this.log('welcome-id', id);
   }
 }

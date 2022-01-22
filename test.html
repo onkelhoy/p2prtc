@@ -5,50 +5,105 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Test environment</title>
   <script src="./delta/client/out/p2pnet.bundle.js"></script>
+  <style>
+    .hide {
+      display: none;
+    }
+    .select > li {
+      cursor: pointer;
+    }
+  </style>
   <script>
-    window.onload = async function() {
-      const list = document.querySelector('ul');
-      const input = document.querySelector('input');
-      const createbutton = document.querySelector('button#create');
-      const refreshbutton = document.querySelector('button#refresh');
+    let controller;
+    let connected = false;
 
-      const controller = window.initnet({
-        printinfo: true,
+    window.onload = async function() {
+      const joinshow = document.querySelector('section#join');
+      const networkshow = document.querySelector('section#network');
+
+      const network_peers = document.querySelector('section#network div#peers');
+      const network_info = document.querySelector('section#network div#info');
+
+      const join_list = document.querySelector('section#join ul');
+      const join_input = document.querySelector('section#join input');
+      const join_createbutton = document.querySelector('section#join button#create');
+      const join_setnamebutton = document.querySelector('section#join button#setname');
+      const join_refreshbutton = document.querySelector('section#join button#refresh');
+
+      controller = window.initnet({
+        logger: 'info',
         socket: {
           url: 'ws://localhost:3000'
+        },
+        user: { name: 'henry-test' }
+      });
+
+      window.controller = controller;
+
+      controller.on('network', (info) => {
+        // we are connected or it got updated
+        if (!connected) {
+          connected = true;
+          initiateNetowork(info);
+
+          joinshow.classList.toggle('hide');
+          networkshow.classList.toggle('hide');
+        }
+        else {
+          // update but wont have it for now
         }
       });
 
-      console.log(controller)
+      controller.on('peer-add', peerinfo => {
+        const li = document.createElement('li');
+        li.innerText = peerinfo.name || 'Bob Lazar ' + peerinfo.id;
+        li.setAttribute('id', peerinfo.id);
+        network_peers.querySelector('ul').appendChild(li);
+      });
 
-      createbutton.onclick = function() {
-        if (input.value) {
+      controller.on('peer-delete', id => {
+        const target = network_peers.querySelector(`ul > li#${id}`);
+        if (target) target.parentNode().removeChild(target);
+      });
+
+      function initiateNetowork(info) {
+        const name = document.createElement('h4');
+        name.innerText = info.name;
+        network_info.appendChild(name);
+      }
+
+      join_createbutton.onclick = function() {
+        if (join_input.value) {
           controller.register({
-            name: input.value
+            name: join_input.value
           });
         }
       }
 
-      refreshbutton.onclick = function() {
+      join_setnamebutton.onclick = function() {
+        controller.UserInfo = { name: joinshow.querySelector('input#name').value };
+      }
+
+      function join(e) {
+        const id = e.target.getAttribute('id');
+        controller.join(id);
+      }
+
+      join_refreshbutton.onclick = function() {
         refresh();
       }
       refresh();
 
       function addListItem(text) {
         const li = document.createElement("li");
-        list.appendChild(li);
+        join_list.appendChild(li);
         li.innerText = text;
 
         return li;
       }
 
-      function join(e) {
-        const id = e.target.getAttribute('id');
-        console.log('join', id);
-      }
-
       async function refresh() {
-        list.innerHTML = "";
+        join_list.innerHTML = "";
         const res = await fetch("http://localhost:3000/network");
         const json = await res.json();
 
@@ -67,14 +122,32 @@
   </script>
 </head>
 <body>
-  <h1>Network Test</h1>
-  <div>
-    <input type="text" value="my-network" placeholder="example-name" />
-    <button id="create">create network</button>
-  </div>
+  <section id="join">
+    <h1>Join Network Test</h1>
+    <div>
+      <label for="network">Netowrk</label>
+      <input type="text" id="network" placeholder="example-name" />
+      <button id="create">create network</button>
+    </div>
 
-  <h3>Networks</h3>
-  <button id="refresh">refresh</button>
-  <ul></ul>
+
+    <div>
+      <label for="name">Set Name</label>
+      <input type="text" id="name" placeholder="example-name" />
+      <button id="setname">set name</button>
+    </div>
+  
+    <h3>Networks</h3>
+    <button id="refresh">refresh</button>
+    <ul class="select"></ul>
+  </section>
+  <section id="network" class="hide">
+    <button>Disconnect</button>
+    <div id="info"></div>
+    <div id="peers">
+      <h4>Peer List</h4>
+      <ul></ul>
+    </div>
+  </section>
 </body>
 </html>

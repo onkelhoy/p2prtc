@@ -1,6 +1,7 @@
 import { IncomingMessageType, MessageType, Message, NetworkMessage, OutgoingMessage, ErrorMessage } from 'types/socket.message';
 import { Reactor } from 'utils/reactor';
 import { print } from 'utils/helper';
+import { Global } from 'global';
 
 const MAX_ATTEMPTS = 10;
 const RECONNECT_TIME_INTERVAL_STEP = 700; // with attempt=10 => 1400 (total time = 10850)
@@ -14,14 +15,12 @@ export class Socket {
   private url: string | URL;
   private printerror = print("socket", "error");
   private log = print("socket");
-  private printinfo: boolean = false;
 
-  constructor(url: string | URL, protocols?: string | string[], printinfo?: boolean) {
+  constructor(url: string | URL, protocols?: string | string[]) {
     this.attempts = 0;
     this.offline = [];
     this.protocols = protocols;
     this.url = url;
-    this.printinfo = !!printinfo;
 
     this.setup();
   }
@@ -38,7 +37,7 @@ export class Socket {
     this.ws.onerror = this.error;
     this.ws.onopen = this.open;
     this.ws.onclose = () => {
-      if (this.printinfo) this.log('connection', 'closed');
+      if (["info", "debug"].includes(Global.logger)) this.log('connection', 'closed');
     }
   }
 
@@ -53,7 +52,7 @@ export class Socket {
           break;
         }
         case IncomingMessageType.Error: {
-          this.printerror("message", (message as ErrorMessage).error);
+          if (["error", "warning", "info", "debug"].includes(Global.logger)) this.printerror("message", (message as ErrorMessage).error);
           break;
         }
       }
@@ -69,13 +68,13 @@ export class Socket {
           this.setup();
         }, (Math.sign(this.attempts) + (this.attempts / MAX_ATTEMPTS)) * RECONNECT_TIME_INTERVAL_STEP)
       }
-      else this.printerror("connection", "attempts maxed out", this.attempts); 
+      else if (["fatal", "error", "warning", "debug"].includes(Global.logger)) this.printerror("connection", "attempts maxed out", this.attempts); 
     }
-    else this.printerror("connection", event);
+    else if (["error", "warning", "debug"].includes(Global.logger)) this.printerror("connection", event);
   }
 
   private open = () => {
-    if (this.printinfo) this.log('connection', 'established');
+    if (["info", "debug"].includes(Global.logger)) this.log('connection', 'established');
     this.attempts = 0;
     while (this.offline.length > 0) {
       const message = this.offline.pop();

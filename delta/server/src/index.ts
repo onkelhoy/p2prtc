@@ -13,6 +13,7 @@ const strikes = Number(process.env.MAX_STRIKES || 3);
 const heartbeat_interval = Number(process.env.HEARTBEAT_INTERVAL || 2000);
 const PORT = Number(process.env.PORT || 3000);
 
+let id = 0;
 const server = http.createServer();
 const wss = new SocketServer({
   server,
@@ -20,6 +21,10 @@ const wss = new SocketServer({
   spam_reset,
   strikes,
   heartbeat_interval,
+  setClientID: () => {
+    id++;
+    return id.toString();
+  }
 });
 
 server.on("request", app(wss));

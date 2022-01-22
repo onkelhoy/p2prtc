@@ -1,5 +1,6 @@
 import ws from 'ws';
 import http from 'http';
+import { performance } from 'perf_hooks';
 
 // import types
 import { ID } from 'types';

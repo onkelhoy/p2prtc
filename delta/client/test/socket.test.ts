@@ -14,7 +14,7 @@ const reactor = new Reactor();
 const URL = "ws://localhost:8000";
 let socket: Socket;
 
-const messages = {
+const messages:Record<string, Message[]> = {
   [IncomingMessageType.Error]: [] as Message[],
   [IncomingMessageType.RegisterACK]: [] as Message[],
   [IncomingMessageType.UpdateACK]: [] as Message[],
@@ -27,12 +27,14 @@ const messages = {
 beforeAll(() => {
   mockserver.setup(8000);
 
-  for (const type of Object.values(Events)) {
-    reactor.register(type);
-    reactor.addEventListener(type, (message:Message) => {
-      messages[type as Events].push(message);
-    })
+  const onmessage = (message:Message) => {
+    messages[message.type].push(message);
   }
+  reactor.on(IncomingMessageType.Error, onmessage);
+  reactor.on(IncomingMessageType.RegisterACK, onmessage);
+  reactor.on(IncomingMessageType.UpdateACK, onmessage);
+  reactor.on(IncomingMessageType.ConnectionACK, onmessage);
+  reactor.on(MessageType.Target, onmessage);
 });
 
 afterAll(() => {
@@ -48,7 +50,7 @@ afterEach(() => {
   socket.close();
 
   for (const key in messages) {
-    messages[key as Events] = [];
+    messages[key] = [];
   }
 });
 

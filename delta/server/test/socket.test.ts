@@ -222,6 +222,17 @@ describe('Checking responses', () => {
     expect(messages[OutgoingMessageType.Error]).toHaveLength(1);
     expect(messages[OutgoingMessageType.Error][0]).toHaveProperty("error", 'Host not found');
   });
+});
+
+describe("mutlitple clients", () => {
+  it("connection", async () => {
+    const a = getSocket();
+    const b = getSocket();
+    await wait();
+
+    expect(a.messages[OutgoingMessageType.ConnectionACK]).toHaveLength(1);    
+    expect(b.messages[OutgoingMessageType.ConnectionACK]).toHaveLength(1);    
+  });
 })
 
 
