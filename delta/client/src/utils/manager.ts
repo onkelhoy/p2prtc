@@ -16,7 +16,7 @@ import { NetworkInfo } from 'types/network';
 const reactor = new Reactor();
 
 export class PeerManager {
-  private peers: Map<ID, Peer> = new Map();
+  public peers: Map<ID, Peer> = new Map();
   private log = print("peer-manager");
   private error = print("peer-manager", "error");
   public media = new Medium();
@@ -40,6 +40,10 @@ export class PeerManager {
     }
   }
   add = (message: SignalMessage) => {
+    if (this.peers.has(message.sender)) {
+      if (["debug"].includes(Global.logger)) this.log('adding', 'dupplicate', message.sender);
+      return;
+    }
     if (["info", "debug"].includes(Global.logger)) this.log('adding', message.sender);
 
     this.peers.set(message.sender, new Peer({

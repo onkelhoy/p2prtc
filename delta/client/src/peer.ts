@@ -1,7 +1,7 @@
 import { Reactor } from "utils/reactor";
 import { Events, ID, PrintFunction, UserInfo } from "types";
-import { DataChannelConfig, PeerConfiguration, PeerType } from "types/peer";
-import { SignalData, SignalMessage, SignalType, SystemInitMessage, SystemMessage, SystemType } from "types/peer.message";
+import { DataChannelConfig, MediaType, PeerConfiguration, PeerType } from "types/peer";
+import { ConnectMessage, SignalData, SignalMessage, SignalType, SystemInitMessage, SystemMessage, SystemType } from "types/peer.message";
 import { Message, MessageType, TargetType } from "types/socket.message";
 import { print, trycatch, tryuntil } from "utils/helper";
 import { Global } from "utils/global";
@@ -52,8 +52,14 @@ export class Peer {
     reactor.on(Events.NewDataChannel, (config: DataChannelConfig) => this.addChannel(config.label, config.dataChannelDict))
     reactor.on(`peer-${this.id}-candidate`, this.reveiceCandidate);
     reactor.on(`peer-${this.id}-answer`, this.receiveAnswer);
+    reactor.on(`peer-${this.id}-system-send`, this.systemsend);
     this.connection.ondatachannel = e => {
       this.setupChannel(e.channel);
+
+      reactor.dispatch(Events.IncommingMedia, { 
+        type: MediaType.Data,
+        config: { label: e.channel.label }
+      });
     }
 
     if (this.type === "calling") {
@@ -150,13 +156,19 @@ export class Peer {
   //#region data-channel
   private addChannel(label: string, config?: RTCDataChannelInit) {
     if (this.channels.has(label)) {
-      if (["warning", "debug"].includes(Global.logger)) this.printerror("data-channel-add", "duplicate channel");
+      // NOTE this is most likly caused when another peer creates it
+      if (["debug"].includes(Global.logger)) this.printerror("data-channel-add", "duplicate channel");
+      return;
     }
 
     const channel = this.connection.createDataChannel(label, config);
     this.setupChannel(channel);
   }
   private setupChannel(channel: RTCDataChannel) {
+    // NOTE its going to circle around twice (onDataChannel [->here] -> media.add -> newDataChannel -> here) see: 2x here
+    if (this.channels.get(channel.label)) {
+      return;
+    }
     channel.onopen = () => {
       if (channel.label === 'system') {
         this.systemopen();
@@ -180,7 +192,7 @@ export class Peer {
   //#endregion
   
   //#region system-data-chanel
-  public systemsend(message:Message):boolean {
+  public systemsend = (message:Message):boolean => {
     const channel = this.channels.get('system');
     if (!channel) {
       if (["fatal", "error", "warning", "debug"].includes(Global.logger)) this.printerror('system-send', 'channel not found');
@@ -199,9 +211,19 @@ export class Peer {
       }
       case SystemType.Init: {
         const { user, network } = message as SystemInitMessage;
-        if (network) reactor.dispatch(Events.NetworkUpdate, network);
+        if (network && (!Global.network || Global.network?.host === user.id)) {
+          reactor.dispatch(Events.NetworkUpdate, network);
+        }
         reactor.dispatch(Events.PeerConnectionOpen, { ...user, type: this.type });
         this.userinfo = user;
+        break;
+      }
+      case SystemType.Connect: {
+        const { target } = message as ConnectMessage;
+        const smsg = {
+          sender: target
+        } as SignalMessage;
+        reactor.dispatch(Events.PeerAdd, smsg);
         break;
       }
       default: {

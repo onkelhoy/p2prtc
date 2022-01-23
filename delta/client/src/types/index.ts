@@ -8,6 +8,7 @@ export enum Events {
   NetworkUpdate = 'network',
   NewStream = 'new-stream',
   NewDataChannel = 'new-data-channel',
+  IncommingMedia = 'incomming-media',
   PeerAdd = 'pre-add-peer',
   PeerDelete = 'delete-peer',
   PeerConnectionOpen = 'add-peer',

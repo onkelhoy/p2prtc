@@ -32,10 +32,12 @@ const log = print("main");
 
 // dynamic variables
 let socket: Socket;
+const forbiddenEvents:string[] = [];
 
 // exposed api for windows
 const p2pclient = {
   info: Global,
+  peers: manager.peers,
   init: function(config: Config) {
     Global.logger = config.logger || 'none'; 
     p2pclient.set(SetType.User, (config.user || {}) as UserInfo)
@@ -64,6 +66,7 @@ const p2pclient = {
     reactor.on(`${Events.PeerMessage}-${channel}`, callback);
   },
   on: function(event:string, callback:Function) {
+    if (forbiddenEvents.includes(event)) return;
     reactor.on(event, callback);
   },
   set: function (type: SetType, data:any) {
@@ -111,8 +114,14 @@ window.p2pclient = p2pclient;
 function events() {
   reactor.on(Events.Target, onTargetMessage);
   reactor.on(Events.SendTarget, sendTargetMessage);
+  reactor.on(Events.PeerConnectionOpen, newConnection);
 }
 
+function newConnection(user: UserInfo) {
+  if (Global.user.id !== Global.network?.host) {
+    socket.close();
+  }
+}
 function forward (message: TargetMessage):boolean {
   if (network.registered) {
     // forward to someone else (or target : based on Topology)

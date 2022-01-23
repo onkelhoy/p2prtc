@@ -1,5 +1,5 @@
 // events
-import { JoinMessage, TargetMessage, TargetType } from "types/socket.message";
+import { JoinMessage, MessageType, TargetMessage, TargetType } from "types/socket.message";
 import { NetworkInfo, RouterInfo } from "types/network";
 import { Events, ID, UserInfo } from "types";
 
@@ -7,6 +7,7 @@ import { Events, ID, UserInfo } from "types";
 import { Reactor } from "utils/reactor";
 import { Global } from "utils/global";
 import { print } from "utils/helper";
+import { SystemType } from "types/peer.message";
 
 const reactor = new Reactor();
 export class Network {
@@ -29,6 +30,24 @@ export class Network {
     this.router.set(peer.id, {
       connection: [Global.user.id],
       type: peer.type,
+    });
+
+    // make sure this new peer gets our connection to establish a mesh network
+    
+    // NOTE this will cause them to later send your id to others
+    this.router.forEach((_info, id) => {
+      // NOTE this means when disconnect we need to remove all references - dont like this
+      if (id !== peer.id) {
+        // this.router.set(id, { 
+        //   ...info,
+        //   connection: [...info.connection, peer.id]
+        // });
+
+        reactor.dispatch(`peer-${id}-system-send`, {
+          type: SystemType.Connect,
+          target: peer.id,
+        });
+      }
     });
   }
 
@@ -68,6 +87,11 @@ export class Network {
   }
 
   join (message: JoinMessage) {
+    if (this.router.has(message.target)) {
+      if (["info", "debug"].includes(Global.logger)) this.log("join", "we already have the connection");
+      return;
+    }
+
     const { config } = message;
     const pass = this.password;
 

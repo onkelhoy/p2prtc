@@ -20,7 +20,7 @@ export interface SignalMessage extends TargetMessage {
 export enum SystemType {
   Target = "target",
   Init = "init",
-  Forward = "forward",
+  Connect = "connect",
 }
 export interface SystemMessage extends Message {
   type: SystemType;
@@ -29,4 +29,8 @@ export interface SystemInitMessage extends SystemMessage {
   type: SystemType.Init;
   user: UserInfo;
   network: NetworkInfo;
+}
+export interface ConnectMessage extends SystemMessage {
+  type: SystemType.Connect;
+  target: ID;
 }

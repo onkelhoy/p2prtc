@@ -30,7 +30,7 @@
       const join_refreshbutton = document.querySelector('section#join button#refresh');
 
       p2pclient.init({
-        logger: 'debug',
+        logger: 'info',
         socket: {
           url: 'ws://localhost:3000'
         }
@@ -65,7 +65,12 @@
       function initiateNetowork(info) {
         const name = document.createElement('h4');
         name.innerText = "Network - " + info.name;
+
+        const me = document.createElement('p');
+        me.innerText = `Me: ${p2pclient.info.user.name}`;
+        
         network_info.appendChild(name);
+        network_info.appendChild(me);
       }
 
       join_createbutton.onclick = function() {

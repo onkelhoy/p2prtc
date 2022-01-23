@@ -14,6 +14,10 @@ export class Medium {
   constructor() {
     this.streams = new Map();
     this.channels = new Map();
+
+    reactor.on(Events.IncommingMedia, (data:any) => {
+      this.add(data.type, data.config);
+    });
   }
 
   public async add(type: MediaType, config?: MediaConfig) {
@@ -21,10 +25,10 @@ export class Medium {
       // we dont have a network yet
       if (["warning", "debug"].includes(Global.logger)) this.printerror("add", "we have no network yet");
     }
-    else if (Global.user.id !== Global.Host) {
-      // we are not the host
-      if (["warning", "debug"].includes(Global.logger)) this.printerror("add", "we are not the host");
-    }
+    // else if (Global.user.id !== Global.network.host) {
+    //   // we are not the host
+    //   if (["warning", "debug"].includes(Global.logger)) this.printerror("add", "we are not the host");
+    // }
     
     try {
       let stream: MediaStream|undefined = undefined;
