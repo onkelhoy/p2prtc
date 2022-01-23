@@ -99,9 +99,51 @@ describe('Core Functionalities', () => {
     await wait();
 
     expect(socketserver.hosts.size).toBe(1);
-    expect(socketserver.hosts.get('1')).toHaveProperty('name', 'something');
+    expect(socketserver.networks.get('1')).toHaveProperty('name', 'something');
   });
   
+  it('register network with specified id', async () => {
+    const {socket} = getSocket();
+    await wait();
+
+    socket.send(JSON.stringify({
+      type: IncomingMessageType.Register,
+      network: { name: 'something', id: 'custom-id' }
+    }));
+    await wait();
+
+    expect(socketserver.networks.size).toBe(1);
+    expect(socketserver.networks.get('custom-id')).toHaveProperty('name', 'something');
+  });
+
+  it('register multiple networks', async () => {
+    const {socket} = getSocket();
+    await wait();
+
+    socket.send(JSON.stringify({
+      type: IncomingMessageType.Register,
+      network: { name: 'something', id: 'blabla1' }
+    }));
+    socket.send(JSON.stringify({
+      type: IncomingMessageType.Register,
+      network: { name: 'something', id: 'blabla2' }
+    }));
+    socket.send(JSON.stringify({
+      type: IncomingMessageType.Register,
+      network: { name: 'something', id: 'blabla3' }
+    }));
+    await wait();
+
+    expect(socketserver.hosts.size).toBe(1);
+    expect(socketserver.hosts.get('1')).toStrictEqual(['blabla1', 'blabla2', 'blabla3']);
+    expect(socketserver.networks.size).toBe(3);
+
+    socket.close();
+    await wait();
+
+    expect(socketserver.hosts.size).toBe(0);
+    expect(socketserver.networks.size).toBe(0);
+  });
 
   it('host leave should result in network gone', async () => {
     const {socket} = getSocket();
@@ -116,6 +158,7 @@ describe('Core Functionalities', () => {
     await wait();
 
     expect(socketserver.hosts.size).toBe(0);
+    expect(socketserver.networks.size).toBe(0);
   });
 
   it('Should prevent spamming', async () => {
@@ -159,7 +202,7 @@ describe('Core Functionalities', () => {
       network: { name: 'something-else' }
     }));
     await wait();
-    expect(socketserver.hosts.get('1')).toHaveProperty('name', 'something-else');
+    expect(socketserver.networks.get('1')).toHaveProperty('name', 'something-else');
   });
 });
 
@@ -183,7 +226,7 @@ describe('Checking responses', () => {
 
     await wait();
     expect(messages[OutgoingMessageType.RegisterACK]).toHaveLength(1);
-    expect(messages[OutgoingMessageType.RegisterACK][0]).toHaveProperty("network", { name: 'hello', id: '1' });
+    expect(messages[OutgoingMessageType.RegisterACK][0]).toHaveProperty("network", { name: 'hello', id: '1', host: '1' });
   });
 
   it("successful update of network should be recognized by update-ack", async () => {
@@ -202,7 +245,7 @@ describe('Checking responses', () => {
     await wait();
 
     expect(messages[OutgoingMessageType.UpdateACK]).toHaveLength(1);
-    expect(messages[OutgoingMessageType.UpdateACK][0]).toHaveProperty("network", { name: 'hello-updated', id: '1' });
+    expect(messages[OutgoingMessageType.UpdateACK][0]).toHaveProperty("network", { name: 'hello-updated', id: '1', host: '1' });
   });
 
   it.skip("unsuccessful register should get error", async () => {

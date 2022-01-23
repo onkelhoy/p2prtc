@@ -16,7 +16,7 @@ export class Network {
   constructor() {
     this.router = new Map();
     reactor.on(Events.NetworkUpdate, this.update);
-    reactor.on(Events.PeerAdd, this.newpeer);
+    reactor.on(Events.PeerConnectionOpen, this.newpeer);
     reactor.on(Events.PeerDelete, this.removepeer);
   }
 
@@ -27,16 +27,13 @@ export class Network {
 
   private newpeer = (peer: UserInfo) => {
     this.router.set(peer.id, {
-      connection: [Global.user.id]
+      connection: [Global.user.id],
+      type: peer.type,
     });
   }
 
   private removepeer = (peer: ID) => {
     this.router.delete(peer);
-  }
-
-  private findTarget(id:ID) {
-
   }
 
   private get password () {
@@ -48,12 +45,26 @@ export class Network {
   }
 
 
-  forward (message: TargetMessage):ID {
-    return Global.network?.id as ID; // base
+  forward (message: TargetMessage):ID|undefined {
+    const target = this.router.get(message.target);
+    if (target) return message.target;
+
+    // NOTE check if we can be connected to this target via another peer ?
+
+    if (Global.user.id === Global.network?.host) {
+      return undefined;
+    }
+    else {
+      // right now we just fallback to host
+      return Global.network?.host;
+    }
   }
 
   connect (message: TargetMessage) {
+    // NOTE we now have the power to determine who in our network should connect to this peer
+    // for now it will always be us 
 
+    reactor.dispatch(Events.PeerAdd, message);
   }
 
   join (message: JoinMessage) {

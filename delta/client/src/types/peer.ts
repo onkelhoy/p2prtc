@@ -11,7 +11,12 @@ export interface PeerConfiguration {
 }
 
 // media related
-export type MediaType = "screen" | "video" | "audio" | "data";
+export enum MediaType {
+  Screen = "screen",
+  Video = "video",
+  Audio = "audio",
+  Data = "data",
+};
 export type MediaConfig = DataChannelConfig|MediaStreamConstraints|DisplayMediaStreamConstraints;
 
 export interface DataChannelConfig {

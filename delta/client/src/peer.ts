@@ -200,7 +200,7 @@ export class Peer {
       case SystemType.Init: {
         const { user, network } = message as SystemInitMessage;
         if (network) reactor.dispatch(Events.NetworkUpdate, network);
-        reactor.dispatch(Events.PeerConnectionOpen, user);
+        reactor.dispatch(Events.PeerConnectionOpen, { ...user, type: this.type });
         this.userinfo = user;
         break;
       }

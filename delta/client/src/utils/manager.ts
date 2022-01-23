@@ -1,6 +1,8 @@
 // types
-import { ID } from 'types';
+import { Events, ID } from 'types';
 import { SignalMessage, SignalType } from 'types/peer.message';
+import { DataChannelConfig, MediaType } from 'types/peer';
+import { TargetMessage } from 'types/socket.message';
 
 // modules
 import { Peer } from 'peer';
@@ -8,7 +10,7 @@ import { Reactor } from './reactor';
 import { Global } from './global';
 import { print } from "./helper";
 import { Medium } from './medium';
-import { TargetMessage } from 'types/socket.message';
+import { NetworkInfo } from 'types/network';
 
 // variables
 const reactor = new Reactor();
@@ -17,20 +19,33 @@ export class PeerManager {
   private peers: Map<ID, Peer> = new Map();
   private log = print("peer-manager");
   private error = print("peer-manager", "error");
-  private media = new Medium();
+  public media = new Medium();
   private config?: RTCConfiguration;
 
   constructor(config?: RTCConfiguration) {
     this.config = config;
+
+    reactor.on(Events.PeerAdd, this.add);
+    reactor.on(Events.NetworkUpdate, this.network);
   }
 
-  add(message: SignalMessage, offer?: RTCSessionDescriptionInit) {
+  private network = (info:NetworkInfo) => {
+    if (info.host === Global.user.id) {
+      if (!this.media.channels.has("system")) {
+        const config: DataChannelConfig = {
+          label: 'system',
+        };
+        this.media.add(MediaType.Data, config);
+      }
+    }
+  }
+  add = (message: SignalMessage) => {
     if (["info", "debug"].includes(Global.logger)) this.log('adding', message.sender);
 
     this.peers.set(message.sender, new Peer({
       id: message.sender,
       rtcConfiguration: this.config,
-      offer,
+      offer: message.signal === SignalType.offer ? message.data as RTCSessionDescriptionInit : undefined,
       streams: this.media.streams,
       channels: this.media.channels,
     }));
@@ -47,7 +62,7 @@ export class PeerManager {
 
   signal(message: SignalMessage) {
     const { signal, data } = message;
-    if (signal === SignalType.offer) this.add(message, data as RTCSessionDescriptionInit);
+    if (signal === SignalType.offer) this.add(message);
     else {
       reactor.dispatch(`peer-${message.sender}-${signal}`, data);
     }
@@ -57,11 +72,10 @@ export class PeerManager {
     const p = this.peers.get(target);
     if (!p) {
       if (Global.logger !== "none") this.error("forward", "not found", target);
-    }
-    else {
-      p.systemsend(message);
       return;
     }
+
+    p.systemsend(message);
   }
 
   send(channel:string, target:ID, message:string):boolean {
@@ -76,6 +90,8 @@ export class PeerManager {
   }
 
   broadcast(channel:string, message:string) {
-    
+    this.peers.forEach(p => {
+      p.send(channel, message);
+    });
   }
 }

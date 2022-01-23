@@ -13,7 +13,6 @@ export enum TargetType {
   Join = "join",
   Reject = "reject",
   Signal = "signal",
-  Network = "network",
 }
 export interface TargetMessageSparse extends Omit<Message, 'type'> {
   targetType: TargetType;

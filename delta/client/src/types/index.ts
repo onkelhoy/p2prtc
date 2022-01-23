@@ -5,26 +5,28 @@ export type PrintFunction = (type: string, ...args: any[]) => void;
 export enum Events {
   Target = "target",
   SendTarget = "send-target",
-  NetworkUpdate = 'network-update',
+  NetworkUpdate = 'network',
   NewStream = 'new-stream',
   NewDataChannel = 'new-data-channel',
-  PeerAdd = 'add-peer',
+  PeerAdd = 'pre-add-peer',
   PeerDelete = 'delete-peer',
-  PeerConnectionOpen = 'peer-open',
+  PeerConnectionOpen = 'add-peer',
   PeerMessage = 'peer-message', // onMessage
+}
+
+export enum SetType {
+  User = 'user',
+  Network = 'network',
+  Media = "media",
 }
 
 // NOTE good page for stun servers: 
 // https://ourcodeworld.com/articles/read/1536/list-of-free-functional-public-stun-servers-2021
 export interface Config {
   logger?: LogType;
-  info?: Object;
   socket: {
     url: string | URL;
     protocols?: string | string[];
-  };
-  testing?: {
-    peers: boolean;
   };
   user?: SparseUserInfo;
   rtcConfiguration?: RTCConfiguration;

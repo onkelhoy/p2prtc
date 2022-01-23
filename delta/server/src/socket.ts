@@ -28,14 +28,16 @@ export class SocketServer extends ws.WebSocketServer {
   private heartbeat_timer: NodeJS.Timer;
 
   public sockets!: Map<ID, Socket>;
-  public hosts!: Map<ID, NetworkInfo>;
+  public networks!: Map<ID, NetworkInfo>;
+  public hosts!: Map<ID, ID[]>;
   public options!: ServerOptions;
 
   constructor(options: ServerOptions, callback?: (() => void) | undefined) {
     super(options, callback);
+    this.networks = new Map();
     this.sockets = new Map();
     this.hosts = new Map();
-
+    
     this.on('connection', (socket: Socket, request) => {
       this.welcome(socket, request);
   
@@ -93,15 +95,19 @@ export class SocketServer extends ws.WebSocketServer {
             break;
           }
           case IncomingMessageType.Update: {
-            if (wss.hosts.has(this.id)) {
+            const { network } = message as NetworkMessage;
+            const networkid = network.id || this.id;
+
+            const targetnetwork = wss.networks.get(networkid);
+            if (targetnetwork && targetnetwork.host === this.id) {
               const { network } = message as NetworkMessage;
-              const updated:NetworkInfo = { ...network, id: this.id };
-              wss.hosts.set(this.id, updated);
+              const updated:NetworkInfo = { ...targetnetwork, ...network, id: networkid, host: this.id };
+              wss.networks.set(networkid, updated);
 
               // NOTE this is just extra
               wss.send(this, {
                 type: OutgoingMessageType.UpdateACK,
-                network: wss.hosts.get(this.id),
+                network: wss.networks.get(networkid),
               } as OutgoingMessage);
             }
             else {
@@ -113,14 +119,19 @@ export class SocketServer extends ws.WebSocketServer {
             break;
           }
           case IncomingMessageType.Register: {
-            if (!wss.hosts.has(this.id)) {
-              const { network } = message as NetworkMessage;
-              wss.hosts.set(this.id, { ...network, id: this.id });
+            const { network } = message as NetworkMessage;
+            const networkid = network.id || this.id;
+
+            if (!wss.networks.has(networkid)) {
+              wss.networks.set(networkid, { ...network, id: networkid, host: this.id });
+
+              const networks = wss.hosts.get(this.id) || [];
+              wss.hosts.set(this.id, [...networks, networkid]);
 
               // NOTE this is just extra
               wss.send(this, {
                 type: OutgoingMessageType.RegisterACK,
-                network: wss.hosts.get(this.id),
+                network: wss.networks.get(networkid),
               } as OutgoingMessage);
             }
             else {
@@ -154,6 +165,8 @@ export class SocketServer extends ws.WebSocketServer {
       wss.sockets.delete(this.id);
 
       if (wss.hosts.has(this.id)) {
+        const networks = wss.hosts.get(this.id);
+        if (networks) networks.forEach(id => wss.networks.delete(id));
         wss.hosts.delete(this.id);
       }
     }

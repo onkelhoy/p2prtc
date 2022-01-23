@@ -8,6 +8,7 @@ export interface Socket extends WebSocket {
   lastmessage?: number;
 }
 
-export interface NetworkInfo extends Object {
+export interface NetworkInfo extends Record<string, any> {
   id: ID;
+  host: ID;
 }

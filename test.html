@@ -14,7 +14,6 @@
     }
   </style>
   <script>
-    let controller;
     let connected = false;
 
     window.onload = async function() {
@@ -30,17 +29,14 @@
       const join_setnamebutton = document.querySelector('section#join button#setname');
       const join_refreshbutton = document.querySelector('section#join button#refresh');
 
-      controller = window.initnet({
-        logger: 'info',
+      p2pclient.init({
+        logger: 'debug',
         socket: {
           url: 'ws://localhost:3000'
-        },
-        user: { name: 'henry-test' }
+        }
       });
 
-      window.controller = controller;
-
-      controller.on('network', (info) => {
+      p2pclient.on('network', (info) => {
         // we are connected or it got updated
         if (!connected) {
           connected = true;
@@ -54,39 +50,39 @@
         }
       });
 
-      controller.on('peer-add', peerinfo => {
+      p2pclient.on('add-peer', peerinfo => {
         const li = document.createElement('li');
         li.innerText = peerinfo.name || 'Bob Lazar ' + peerinfo.id;
         li.setAttribute('id', peerinfo.id);
         network_peers.querySelector('ul').appendChild(li);
       });
 
-      controller.on('peer-delete', id => {
+      p2pclient.on('delete-peer', id => {
         const target = network_peers.querySelector(`ul > li#${id}`);
         if (target) target.parentNode().removeChild(target);
       });
 
       function initiateNetowork(info) {
         const name = document.createElement('h4');
-        name.innerText = info.name;
+        name.innerText = "Network - " + info.name;
         network_info.appendChild(name);
       }
 
       join_createbutton.onclick = function() {
         if (join_input.value) {
-          controller.register({
+          p2pclient.register({
             name: join_input.value
           });
         }
       }
 
       join_setnamebutton.onclick = function() {
-        controller.UserInfo = { name: joinshow.querySelector('input#name').value };
+        p2pclient.set('user', { name: joinshow.querySelector('input#name').value });
       }
 
       function join(e) {
         const id = e.target.getAttribute('id');
-        controller.join(id);
+        p2pclient.join(id);
       }
 
       join_refreshbutton.onclick = function() {
@@ -125,7 +121,7 @@
   <section id="join">
     <h1>Join Network Test</h1>
     <div>
-      <label for="network">Netowrk</label>
+      <label for="network">Network</label>
       <input type="text" id="network" placeholder="example-name" />
       <button id="create">create network</button>
     </div>

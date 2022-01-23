@@ -42,7 +42,7 @@ function router(
     let networks:NetworkInfo[]|null = [];
 
     if (path[1]) {
-      const network = wss.hosts.get(path[1]);
+      const network = wss.networks.get(path[1]);
       if (network) {
         networks.push(network);
       }
@@ -51,7 +51,7 @@ function router(
 
     if (path[0] === path.input) {
       // get all networks
-      wss.hosts.forEach(network => (networks as NetworkInfo[]).push(network));
+      wss.networks.forEach(network => (networks as NetworkInfo[]).push(network));
     }
 
     if (networks) {
