@@ -1,13 +1,22 @@
+import { Global } from 'utils/global';
 import { 
+  EventWait,
   print as printfunction,
   trycatch,
   tryuntil, 
 
   wait, // test helper function
 } from 'utils/helper';
+import { Reactor } from 'utils/reactor';
 
 const print = printfunction("test", "error");
 let logs: string[] = [];
+
+const reactor = new Reactor();
+
+beforeAll(() => {
+  Global.logger = 'debug';
+});
 
 beforeEach(() => {
   console.error = function(...args: any[]) {
@@ -78,4 +87,35 @@ describe("tryuntil", () => {
 
     expect(errors).not.toHaveLength(3);
   });
-})
+});
+
+describe("EventWait", () => {
+  beforeAll(() => {
+    reactor.on('test-success', (n:number) => {
+      reactor.dispatch('test-success-success', n + 10);
+    });
+  
+    reactor.on('test-error', (n:number) => {
+      reactor.dispatch('test-error-error', n - 10);
+    });
+  })
+
+  it("should be successfull", async () => {
+    const result = await EventWait("test-success", () => {
+      reactor.dispatch('test-success', 100);
+    });
+
+    expect(result).toBe(110);
+  });
+
+  it("should be unsuccessfull", async () => {
+    try {
+      await EventWait("test-error", () => {
+        reactor.dispatch('test-error', 100);
+      });
+    }
+    catch (e) {
+      expect(e).toBe(90);
+    }
+  });
+});

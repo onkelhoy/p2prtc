@@ -1,5 +1,8 @@
 import { Global } from "utils/global";
 import { PrintFunction } from "types";
+import { Reactor } from "./reactor";
+
+const reactor = new Reactor();
 
 export function print(name: string, printtype: 'error'|'log' = 'log'): PrintFunction {
   return (type: string, ...args: any[]) => {
@@ -37,6 +40,30 @@ export function tryuntil(type: string, func:(attempt: number) => void, tries: nu
       }
     }, duration);
   })
+}
+
+export function EventWait(event:string, executor:Function) { 
+  return new Promise((success, error) => {
+    const successEvent = `${event}-success`;
+    const errorEvent = `${event}-error`;
+
+    const onsuccess = callback(success);
+    const onerror = callback(error);
+
+    reactor.on(successEvent, onsuccess);
+    reactor.on(errorEvent, onerror);
+
+    executor();
+
+    function callback(handler:Function) {
+      return (data:any) => {
+        reactor.removeEventListener(successEvent, onsuccess);
+        reactor.removeEventListener(errorEvent, onerror);
+
+        handler(data);
+      }
+    }
+  });
 }
 
 export async function wait (x:number = 100): Promise<void> {
