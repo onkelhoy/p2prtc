@@ -58,6 +58,12 @@ export class Socket {
           reactor.dispatch(Events.NetworkUpdate, message.network);
           break;
         }
+        case IncomingMessageType.ConnectionACK: {
+          const { id } = message;
+          Global.user = { ...Global.user, id };
+          if (["info", "debug"].includes(Global.logger)) this.log('welcome-id', id);
+          break;
+        }
         case IncomingMessageType.Error: {
           if (["error", "warning", "info", "debug"].includes(Global.logger)) this.printerror("message", (message as ErrorMessage).error);
           break;

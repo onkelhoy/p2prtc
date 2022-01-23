@@ -69,6 +69,10 @@ export class Peer {
     }
   }
 
+  public close() {
+    this.connection.close();
+  }
+
   //#region handshake
   private reveiceCandidate = (candidate: RTCIceCandidate) => {
     tryuntil("receive-answer", async () => {

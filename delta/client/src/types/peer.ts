@@ -3,7 +3,7 @@ import { ID, UserInfo } from "types";
 export type PeerType = "calling" | "receiving";
 export interface PeerConfiguration {
   id: ID;
-  rtcConfiguration: RTCConfiguration;
+  rtcConfiguration?: RTCConfiguration;
   offer?: RTCSessionDescriptionInit;
 
   streams: Map<Omit<MediaType, 'data'>, MediaStream>;

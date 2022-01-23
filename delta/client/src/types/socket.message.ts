@@ -25,7 +25,7 @@ export interface TargetMessage extends TargetMessageSparse {
 }
 export interface JoinMessage extends TargetMessage {
   targetType: TargetType.Join;
-  config?: any;
+  config?: Record<string, any>;
 }
 
 // outgoing messages 
@@ -40,9 +40,6 @@ export interface IncomingMessage extends Message {
 }
 export interface NetworkMessage extends IncomingMessage {
   network: NetworkInfo;
-}
-export interface WelcomeMessage extends IncomingMessage {
-  id: ID;
 }
 export interface ErrorMessage extends IncomingMessage {
   error: string;

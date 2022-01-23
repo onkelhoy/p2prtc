@@ -30,9 +30,3 @@ export interface SystemInitMessage extends SystemMessage {
   user: UserInfo;
   network: NetworkInfo;
 }
-
-export interface ForwardMessage extends SystemMessage {
-  type: SystemType.Forward;
-  connections: ID[];
-  target: ID;
-}

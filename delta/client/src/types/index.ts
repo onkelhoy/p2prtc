@@ -5,30 +5,18 @@ export type PrintFunction = (type: string, ...args: any[]) => void;
 export enum Events {
   Target = "target",
   SendTarget = "send-target",
-  SocketUpdateACK = "network-update-ack",
-  SocketRegisterACK = "network-register-ack",
-  SocketConnectionACK = "socket-connection-ack",
-
   NetworkUpdate = 'network-update',
   NewStream = 'new-stream',
   NewDataChannel = 'new-data-channel',
-  ForwardMessage = 'forward-message',
-
   PeerAdd = 'add-peer',
   PeerDelete = 'delete-peer',
-  PeerMessage = 'peer-message',
   PeerConnectionOpen = 'peer-open',
+  PeerMessage = 'peer-message', // onMessage
 }
-
-export enum UIEvents {
-  Network = 'network',
-  PeerAdd = 'peer-add',
-  PeerDelete = 'peer-delete',
-};
 
 // NOTE good page for stun servers: 
 // https://ourcodeworld.com/articles/read/1536/list-of-free-functional-public-stun-servers-2021
-export interface ControllerConfig {
+export interface Config {
   logger?: LogType;
   info?: Object;
   socket: {

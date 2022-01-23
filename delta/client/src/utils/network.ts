@@ -1,97 +1,73 @@
-import { Global } from "utils/global";
-import { Events, ID, UIEvents } from "types";
-import { NetworkInfo, PartialNetworkInfo, RouterInfo } from "types/network";
-import { JoinMessage, TargetMessage } from "types/socket.message";
+// events
+import { JoinMessage, TargetMessage, TargetType } from "types/socket.message";
+import { NetworkInfo, RouterInfo } from "types/network";
+import { Events, ID, UserInfo } from "types";
+
+// utils
 import { Reactor } from "utils/reactor";
+import { Global } from "utils/global";
+import { print } from "utils/helper";
 
 const reactor = new Reactor();
-
 export class Network {
   private router: Map<ID, RouterInfo>;
+  private log = print("network");
 
-  constructor(info: NetworkInfo) {
-    Global.network = info; // id is the host
+  constructor() {
     this.router = new Map();
-
-    reactor.dispatch(UIEvents.Network, info);
+    reactor.on(Events.NetworkUpdate, this.update);
+    reactor.on(Events.PeerAdd, this.newpeer);
+    reactor.on(Events.PeerDelete, this.removepeer);
   }
 
-  public get size() {
-    return this.router.size + 1; // + myself
+  private update = (info: NetworkInfo) => {
+    Global.network = info;
+    if (["info", "debug"].includes(Global.logger)) this.log("update", Global.network);
   }
 
-  public get Info () {
-    return Global.network;
-  }
-
-  public get Host ():ID|undefined {
-    return Global.network?.id;
-  }
-
-  public update (info: PartialNetworkInfo) {
-    // TODO tell server if host & connected
-    // need to tell peers, (by calling network and let it deal with this logic)
-    Global.network = { ...info, id: Global.user.id };
-    reactor.dispatch(UIEvents.Network, Global.network);
-  }
-
-  public accept(message: JoinMessage):boolean {
-    if (Global.user.id === message.sender || this.router.has(message.sender)) return false;
-
-    // TODO use the rest of info to determin if they can join etc...
-
-    /** NOTE host could maybe ask peers to drop current connections and replace with others as network scales etc
-     * then we should have a method to say: hey replace a with b and after signaling is done with b the they drop a connection
-     * 
-     * could notify the rest asking them if its okay etc
-     */
-    
-    return true;
-  }
-
-  public connect(message: TargetMessage) {
-    let connector = Global.user.id;
-    // TODO figure out if we should connect or forward the connection 
-
-    this.router.set(message.target, { 
-      connection: [connector],
+  private newpeer = (peer: UserInfo) => {
+    this.router.set(peer.id, {
+      connection: [Global.user.id]
     });
+  }
 
-    if (connector !== Global.user.id) reactor.dispatch(Events.ForwardMessage, message);
+  private removepeer = (peer: ID) => {
+    this.router.delete(peer);
+  }
+
+  private findTarget(id:ID) {
+
+  }
+
+  private get password () {
+    return Global.network?.password;
+  }
+
+  get registered () {
+    return Global.network !== undefined;
+  }
+
+
+  forward (message: TargetMessage):ID {
+    return Global.network?.id as ID; // base
+  }
+
+  connect (message: TargetMessage) {
+
+  }
+
+  join (message: JoinMessage) {
+    const { config } = message;
+    const pass = this.password;
+
+    if (!pass || pass === config?.password) {
+      this.connect(message as TargetMessage);
+    }
     else {
-      // we are going to connect
-      reactor.dispatch(Events.PeerAdd, message);
+      reactor.dispatch(Events.SendTarget, {
+        targetType: TargetType.Reject,
+        target: message.sender,
+      });
     }
-  }
-
-  public disconnected(peer: ID) {
-    this.remove(peer);
-    // should we ask others if they got removed also ?
-    // if not maybe we should reconnect ?
-  }
-
-  public forward(id: ID): ID|null {
-    // NOTE this is where topology magic can take place
-    const t = this.router.get(id)
-    if (t && t.connection.includes(Global.user.id)) return id;
-
-    // NOTE figure out the best way to connect 
-    const h = this.Host;
-    if (h) {
-      if (Global.user.id !== h) return h
-    }
-
-    // socket has to do it
-    return null;
-  }
-  public remove(id: ID) {
-    this.router.delete(id);
-    // this should be left alone (not do what disconnect does) 
-    // as this could be a order from host (for topology change)
-  }
-  public join(id: ID) { //
-    this.router.set(id, { 
-      connection: [Global.user.id], // this means we have direct-contact
-    })
   }
 }
